@@ -166,16 +166,18 @@ export class GameEngine {
         this.state.credits -= item.price;
         if (!Array.isArray(this.state.inventory)) this.state.inventory = [];
         
+        // 將商品名稱加入庫存
         this.state.inventory.push(item.name);
 
-        // 特殊物品邏輯
+        // 特殊物品邏輯 (保留兼容性)
         if (item.id === 'psionic_amp' || item.name.includes('靈能增幅器')) {
              if (!this.state.psionics) this.state.psionics = { level: 0, energy: 0, max_energy: 1, abilities: [] };
              this.state.psionics.max_energy += 1;
              this.state.psionics.energy = this.state.psionics.max_energy;
         }
 
-        return `[SYSTEM] 交易成功：\n- 購買物品：${item.name}\n- 支付：${item.price} CR\n- 剩餘餘額：${this.state.credits} CR\n- 物品描述：${item.description}\n請描述玩家獲得此物品的過程。`;
+        return `[SYSTEM] 交易成功：\n- 購買物品：${item.name}\n- 支付：${item.price} CR\n- 剩餘餘額：${this.state.credits} CR\n- 物品描述：${item.description}`;
+
     } else {
         const sellPrice = Math.floor(item.price * 0.5);
         const idx = this.state.inventory.indexOf(item.name);
@@ -189,19 +191,13 @@ export class GameEngine {
     }
   }
 
-  /**
-   * 核心處理方法
-   */
-  public processAction(type: ActionCategory, payload: any, ap_cost: number = 0): string {
-    // 1. AP 檢查
+  public processAction(type: string, payload: any, ap_cost: number = 0): string {
     if (ap_cost > 0 && this.state.actionPoints < ap_cost) {
       throw new Error(`體力透支，無法執行此高強度行動 (需要 ${ap_cost} AP，當前僅剩 ${this.state.actionPoints})。建議進行休整 (REST)。`);
     }
 
-    // 2. 扣除 AP
     this.state.actionPoints -= ap_cost;
     
-    // 3. 互動鎖定邏輯處理
     const command = String(payload);
     if (['MOVE_SHORT', 'MOVE_LONG', 'REST'].includes(type)) {
       this.state.interaction = { targetName: null, status: 'NONE' };
@@ -226,14 +222,8 @@ export class GameEngine {
         case 'TRADE':
           log = this.handleTrade(payload);
           break;
-        case 'TALK':
-        case 'MOVE_SHORT':
-        case 'COMBAT':
-        case 'ACTION':
-          log = `[SYSTEM] 執行行動：${type}\n- 指令內容：${payload}\n- 消耗 AP：${ap_cost}`;
-          break;
         default:
-          log = `[SYSTEM] 執行未知分類行動: ${type}`;
+          log = `[SYSTEM] 執行行動：${type}\n- 指令內容：${typeof payload === 'object' ? JSON.stringify(payload) : payload}\n- 消耗 AP：${ap_cost}`;
       }
     } catch (error: any) {
       this.state.actionPoints += ap_cost;

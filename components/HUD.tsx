@@ -118,27 +118,27 @@ export const HUD: React.FC<HUDProps> = ({ state }) => {
             </div>
 
             {/* Bottom Row: Inventory / Backpack Slots */}
-            <div className="flex gap-1.5 mt-1.5 overflow-x-auto pb-1 items-center custom-scrollbar no-scrollbar">
-                <span className="text-[8px] text-gray-500 font-mono uppercase mr-1 tracking-[0.2em] shrink-0 border-r border-gray-800 pr-2">裝備存儲 (INV)</span>
+            <div className="flex gap-1 mt-2 overflow-x-auto pb-1 items-center custom-scrollbar no-scrollbar">
+                <span className="text-[9px] text-gray-500 font-mono uppercase mr-1 tracking-widest shrink-0 border-r border-gray-800 pr-2">INV_MODULE</span>
                 
                 {(!state.inventory || state.inventory.length === 0) ? (
-                    <div className="text-[8px] text-gray-700 italic font-mono px-2">無物品 (EMPTY)</div>
+                    <div className="text-[9px] text-gray-700 italic font-mono px-2">EMPTY</div>
                 ) : (
                     state.inventory.map((item, i) => (
                         <div key={i} className="group relative shrink-0">
-                            <div className="px-2 py-0.5 bg-neon-blue/5 border border-neon-blue/20 text-[9px] text-cyan-100 font-mono hover:border-neon-blue hover:bg-neon-blue/10 transition-all cursor-help rounded-sm shadow-[0_0_5px_rgba(0,243,255,0.05)]">
+                            <div className="px-2 py-1 bg-black/40 border border-gray-700 text-[9px] text-gray-300 font-mono hover:border-neon-blue hover:text-neon-blue hover:bg-neon-blue/10 transition-all cursor-help rounded-sm">
                                 {item}
                             </div>
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block bg-black border border-neon-blue/50 text-[8px] text-neon-blue px-2 py-1 whitespace-nowrap z-50 rounded shadow-xl">
-                                物品序號: #{i + 1}
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block bg-black border border-gray-600 text-[8px] text-white px-2 py-1 whitespace-nowrap z-50 rounded shadow-xl">
+                                ITEM_ID: {i}
                             </div>
                         </div>
                     ))
                 )}
                 
                 {/* Empty slot placeholders */}
-                {[...Array(Math.max(0, 6 - (state.inventory?.length || 0)))].map((_, i) => (
-                    <div key={`empty-${i}`} className="w-10 h-4 border border-white/5 bg-white/5 rounded-sm shrink-0 border-dashed"></div>
+                {[...Array(Math.max(0, 5 - (state.inventory?.length || 0)))].map((_, i) => (
+                    <div key={`empty-${i}`} className="w-8 h-5 border border-gray-800/50 bg-black/20 rounded-sm shrink-0 border-dashed"></div>
                 ))}
             </div>
         </div>

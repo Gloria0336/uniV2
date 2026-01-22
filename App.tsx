@@ -77,7 +77,7 @@ const App: React.FC = () => {
     }
   }, [gameState]);
 
-  // 共用的敘事處理函式
+  // 共用的敘事處理函式 (Process Game Response)
   const processGameResponse = async (systemLog: string, silent: boolean = false) => {
     if (!engineRef.current) return;
 
@@ -97,44 +97,60 @@ const App: React.FC = () => {
       specialRequest += " [系統請求] 需要更新暗網流言。";
     }
 
-    setGameState(prev => ({ ...prev, ...currentEngineState }));
+    // [CRITICAL FIX] 剔除 engineState 中的 history，防止覆蓋
+    const { history: _h, ...engineStateSafe } = currentEngineState;
 
-    const narrative = await gameService.generateStory(systemLog, currentEngineState, specialRequest);
-    
-    let eventLogs: string[] = [];
-    if (narrative.game_events) {
-       eventLogs = engineRef.current.applyGameEvents(narrative.game_events);
-       currentEngineState = engineRef.current.getState();
-    }
-    
-    // Explicitly casting role to avoid string assignment error
-    setGameState(prev => {
-      const newHistory: ChatMessage[] = [...prev.history, { 
-          role: 'model' as const, 
-          content: narrative.description, 
-          timestamp: Date.now(), 
-          imagePrompt: narrative.image_prompt 
-      }];
-      if (eventLogs.length > 0) {
-          eventLogs.forEach(log => newHistory.push({ role: 'system' as const, content: log, timestamp: Date.now() }));
+    setGameState(prev => ({
+      ...prev,
+      ...engineStateSafe,
+      history: silent ? prev.history : [...prev.history].slice(-MAX_HISTORY_LEN)
+    }));
+
+    try {
+      const narrative = await gameService.generateStory(systemLog, currentEngineState, specialRequest);
+      
+      let eventLogs: string[] = [];
+      if (narrative.game_events) {
+         eventLogs = engineRef.current.applyGameEvents(narrative.game_events);
+         currentEngineState = engineRef.current.getState();
       }
       
-      return {
-          ...prev,
-          ...currentEngineState,
-          history: newHistory.slice(-MAX_HISTORY_LEN),
-          currentOptions: narrative.options || [],
-          news: [...(prev.news || []), ...(narrative.news || [])].slice(-10),
-          gossip: [...(prev.gossip || []), ...(narrative.gossip || [])].slice(-10),
-          lastNewsDate: newLastNewsDate,
-          actionStepCount: newStep,
-          shop: narrative.shop,
-          reputation: narrative.reputation || prev.reputation,
-          myFaction: narrative.myFaction || prev.myFaction,
-          factions: narrative.factions || prev.factions
-      };
-    });
-    setIsProcessing(false);
+      const { history: _h2, ...finalEngineStateSafe } = currentEngineState;
+
+      setGameState(prev => {
+        const newHistory: ChatMessage[] = [...prev.history, { 
+            role: 'model' as const, 
+            content: narrative.description, 
+            timestamp: Date.now(), 
+            imagePrompt: narrative.image_prompt 
+        }];
+        if (eventLogs.length > 0) {
+            eventLogs.forEach(log => newHistory.push({ role: 'system' as const, content: log, timestamp: Date.now() }));
+        }
+        
+        return {
+            ...prev,
+            ...finalEngineStateSafe,
+            history: newHistory.slice(-MAX_HISTORY_LEN),
+            currentOptions: narrative.options || [],
+            news: [...(prev.news || []), ...(narrative.news || [])].slice(-10),
+            gossip: [...(prev.gossip || []), ...(narrative.gossip || [])].slice(-10),
+            lastNewsDate: newLastNewsDate,
+            actionStepCount: newStep,
+            shop: narrative.shop,
+            reputation: narrative.reputation || prev.reputation,
+            myFaction: narrative.myFaction || prev.myFaction,
+            factions: narrative.factions || prev.factions
+        };
+      });
+    } catch (err: any) {
+        setGameState(prev => ({ 
+            ...prev, 
+            history: [...prev.history, { role: 'system' as const, content: `[傳輸錯誤]: ${err.message}`, timestamp: Date.now() }].slice(-MAX_HISTORY_LEN) 
+        }));
+    } finally {
+        setIsProcessing(false);
+    }
   };
 
   const startGame = async (name: string, faction: FactionDetails, profile: PlayerProfile, avatarUrl: string, config: GameConfig) => {
@@ -172,17 +188,19 @@ const App: React.FC = () => {
       };
       engineRef.current = new GameEngine(initialState);
       await gameService.startSession(name, faction, profile, config);
-      setGameState(engineRef.current.getState());
-
-      const introLog = `[SYSTEM] Neural Link Established. Subject: ${name}. Faction: ${faction.name}. Location: ${initialState.location}. 正在初始化勢力資料庫。`;
-      const narrative = await gameService.generateStory(introLog, initialState, "正在初始化世界狀態。");
+      
+      const narrative = await gameService.generateStory(`[SYSTEM] Neural Link Established. Subject: ${name}. Faction: ${faction.name}.`, initialState, "正在初始化世界狀態。");
       if (narrative.game_events?.initial_skills && engineRef.current) {
           engineRef.current.setSkills(narrative.game_events.initial_skills);
       }
       
-      // Fix line 224: Avoid spreading narrative directly to avoid extra properties and map fields correctly.
+      const engineState = engineRef.current.getState();
+      const { history: _h, ...engineStateSafe } = engineState;
+
       setGameState(prev => ({ 
         ...prev, 
+        ...engineStateSafe,
+        gameStarted: true,
         currentOptions: narrative.options || [],
         latestImagePrompt: narrative.image_prompt,
         news: narrative.news,
@@ -192,7 +210,6 @@ const App: React.FC = () => {
         reputation: narrative.reputation || prev.reputation,
         myFaction: narrative.myFaction || prev.myFaction,
         factions: narrative.factions || prev.factions,
-        skills: engineRef.current!.getState().skills,
         history: [{ 
           role: 'model' as const, 
           content: narrative.description, 
@@ -213,7 +230,6 @@ const App: React.FC = () => {
     setInput('');
     setIsProcessing(true);
     
-    // Explicitly casting role to 'user'
     setGameState(prev => ({ 
       ...prev, 
       currentOptions: [], 
@@ -238,7 +254,6 @@ const App: React.FC = () => {
     if (!engineRef.current || gameState.isGameOver || isProcessing) return;
     
     const displayMsg = `[TRANSACTION] 購買物品: ${item.name} (價格: ${item.price} CR)`;
-    // Explicitly casting role to 'user'
     setGameState(prev => ({
         ...prev,
         history: [...prev.history, { role: 'user' as const, content: displayMsg, timestamp: Date.now() }].slice(-MAX_HISTORY_LEN)
@@ -262,8 +277,12 @@ const App: React.FC = () => {
     if (!engineRef.current) return;
     const msg = engineRef.current.upgradeSkill(skillName);
     const updated = engineRef.current.getState();
-    setGameState(prev => ({ ...prev, skills: updated.skills, freeSkillPoints: updated.freeSkillPoints }));
-    if (msg) setGameState(prev => ({ ...prev, history: [...prev.history, { role: 'system' as const, content: msg, timestamp: Date.now() }].slice(-MAX_HISTORY_LEN) }));
+    const { history: _h, ...engineStateSafe } = updated;
+    setGameState(prev => ({ 
+        ...prev, 
+        ...engineStateSafe,
+        history: [...prev.history, { role: 'system' as const, content: msg, timestamp: Date.now() }].slice(-MAX_HISTORY_LEN) 
+    }));
   };
 
   if (!gameState.gameStarted) return <Intro onStart={startGame} isLoading={isProcessing} />;
