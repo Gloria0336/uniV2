@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>太陽系一級文明模擬器</title>
+    
+    <!-- 1. API_KEY 與環境變數初始化 (由系統自動注入) -->
+    <script>
+      // 確保瀏覽器環境中有 process.env 物件供 SDK 使用
+      window.process = window.process || { env: {} };
+      // 提醒：API_KEY 會由系統環境變數自動注入到 process.env.API_KEY
+      console.log("System identity check: Environment initialized.");
+    </script>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              mono: ['"JetBrains Mono"', 'monospace'],
+              sans: ['"Rajdhani"', 'sans-serif'],
+            },
+            colors: {
+              'neon-blue': '#00f3ff',
+              'neon-red': '#ff003c',
+              'neon-green': '#0aff0a',
+              'void-black': '#050505',
+              'glass': 'rgba(20, 25, 40, 0.75)',
+            },
+            animation: {
+              'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'scanline': 'scanline 8s linear infinite',
+            },
+            keyframes: {
+              scanline: {
+                '0%': { transform: 'translateY(-100%)' },
+                '100%': { transform: 'translateY(100%)' }
+              }
+            }
+          },
+        },
+      }
+    </script>
+    <style>
+      body {
+        background-color: #000;
+        color: #e0e0e0;
+        overflow: hidden;
+      }
+      ::-webkit-scrollbar { width: 8px; }
+      ::-webkit-scrollbar-track { background: #0a0a0a; }
+      ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+      ::-webkit-scrollbar-thumb:hover { background: #00f3ff; }
+      
+      /* 按鈕點擊效果 */
+      button:active { transform: scale(0.98); }
+    </style>
+
+    <!-- 2. 全域點擊監聽與錯誤監控 -->
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        console.log("DOM Content Loaded. UI Listeners active.");
+        
+        document.addEventListener('click', (e) => {
+          if (e.target.tagName === 'BUTTON' || e.target.closest('button')) {
+            console.log("Button clicked:", e.target.innerText || e.target.textContent || "Unlabeled Button");
+          }
+        });
+
+        window.onerror = function(msg, url, line, col, error) {
+          console.error(`Global Error Caught: ${msg} at ${line}:${col}`);
+          if (msg.includes('undefined')) {
+            // alert("偵測到變數未定義錯誤，請檢查 API Key 或網路連線。");
+          }
+        };
+      });
+    </script>
+
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.37.0"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
