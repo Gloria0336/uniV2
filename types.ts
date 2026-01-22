@@ -145,6 +145,7 @@ export interface GameEvents {
     type: 'INNATE' | 'PSIONIC' | 'TECH' | 'LEADERSHIP';
     description: string;
   };
+  initial_skills?: Skill[]; // 新增：初始化時生成的隨機技能陣列
 }
 
 // 新增：本地運算結果介面

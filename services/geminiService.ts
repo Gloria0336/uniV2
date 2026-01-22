@@ -58,6 +58,20 @@ const narrativeSchema = {
             type: { type: Type.STRING },
             description: { type: Type.STRING }
           }
+        },
+        initial_skills: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              id: { type: Type.STRING },
+              name: { type: Type.STRING },
+              type: { type: Type.STRING },
+              description: { type: Type.STRING },
+              level: { type: Type.INTEGER },
+              maxLevel: { type: Type.INTEGER }
+            }
+          }
         }
       }
     },
@@ -72,7 +86,6 @@ const narrativeSchema = {
         saturn: { type: Type.INTEGER }
       }
     },
-    // 已移除 'skills' 陣列，技能狀態由 GameEngine 本地管理
     myFaction: {
       type: Type.OBJECT,
       nullable: true,
@@ -135,7 +148,6 @@ export interface NarrativeResponse {
   game_events?: GameEvents;
   reputation?: string;
   factions?: { earth: number; mars: number; belt: number; jupiter: number; saturn: number };
-  // skills?: Skill[]; // 已移除，改由本地管理
   myFaction?: MyFaction;
   news: FactionNews[];
   gossip: GossipItem[];
@@ -156,16 +168,23 @@ const LORE_DATA = `
 你 **不可** 計算日誌、金錢與 **技能列表** (由 Engine 負責)。
 你 **必須** 負責生成「敘事性資料」與「遊戲事件」。
 
+【初始化階段 (Initialization Only)】
+當 systemLog 包含 "[SYSTEM] Neural Link Established" (即遊戲剛開始) 時，你 **必須** 在 game_events 中回傳 initial_skills 陣列。
+請根據玩家的勢力 (Faction) 與背景 (Profile)，隨機設計 3~4 個符合設定的初始技能。
+- 自由民：側重黑客、潛行、走私相關技能。
+- 紅教：側重靈能、機械神學、意志相關技能。
+- EUG：側重戰鬥、科技維護、官僚指揮相關技能。
+
 【遊戲事件 (Game Events)】
 當劇情涉及以下情況時，請使用 'game_events' 物件回傳數值變更，而不要直接修改 status：
 1. **經驗值 (xp_gain)**: 戰鬥勝利 (+20~50)、任務完成 (+100)、發現新地點 (+10)。
 2. **生命變化 (hp_change)**: 戰鬥受傷 (負數，如 -15)、醫療事件 (正數)。
 3. **物品獲得 (new_item)**: 探索發現或 NPC 贈送。
-4. **技能習得 (new_skill)**: 只有當玩家在劇情中「領悟」或「學習」了全新的能力時，才填寫此欄位。**平時請勿回傳技能列表**。
+4. **技能習得 (new_skill)**: 只有當玩家在劇情中「領悟」或「學習」了全新的能力時，才填寫此欄位。
 5. **勢力變更 (reputation_change)**: 使用 keys: earth, mars, belt, jupiter, saturn。
 
 【資料生成規則】
-1. **技能 (Skills)**: **禁止** 在回傳的 JSON 中包含完整的 skills 陣列。技能狀態已由客戶端託管。若要讓玩家學新技能，請使用 game_events.new_skill。
+1. **技能 (Skills)**: **禁止** 在回傳的 JSON 中包含完整的 skills 陣列。技能狀態已由客戶端託管。除了初始化階段的 initial_skills 外，請使用 game_events.new_skill 來讓玩家獲得單一新技能。
 2. **聲望 (Reputation)**: 用一句帥氣的話描述玩家當前的名聲。
 3. **新聞與流言 (News Limiter)**:
    - **頻率控制**: 只有在 [SYSTEM REQUEST] 明確要求更新，或是 [SYSTEM LOG] 中出現 \`[PLOT EVENT]\` 或 \`[MAJOR EVENT]\` 時，**才允許**生成 \`news\` 與 \`gossip\`。
@@ -378,7 +397,6 @@ ${specialRequests || "None. Keep narrative focused."}
       // Soft Data Handling
       reputation: raw.reputation,
       factions: raw.factions,
-      // skills: undefined, // 技能不再從 AI 讀取
       myFaction: raw.myFaction,
       // World Data
       news: Array.isArray(raw.news) ? raw.news : [],

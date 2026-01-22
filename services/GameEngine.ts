@@ -12,7 +12,7 @@ const TIMELINE: Record<number, string> = {
   30: "【全面衝突】EUG 正式對自由民宣戰，火星航道被全面封鎖。"
 };
 
-// 預設基礎技能表
+// 預設基礎技能表 (作為備援)
 const INITIAL_SKILLS: Skill[] = [
     { id: 'basic_hacking', name: '基礎駭入', level: 1, maxLevel: 5, description: '解鎖基礎電子鎖與獲取低階情報的能力。', type: 'TECH', progress: 0 },
     { id: 'kinetic_weapons', name: '動能武器', level: 1, maxLevel: 5, description: '熟練使用傳統槍械進行戰鬥。', type: 'INNATE', progress: 0 },
@@ -30,7 +30,7 @@ export class GameEngine {
     if (this.state.turn === undefined) this.state.turn = 1;
     if (this.state.worldStage === undefined) this.state.worldStage = 1;
 
-    // 技能初始化：如果沒有技能，則載入預設技能
+    // 技能初始化：如果沒有技能，則載入預設技能 (之後會被 setSkills 覆蓋)
     if (!this.state.skills || this.state.skills.length === 0) {
         this.state.skills = JSON.parse(JSON.stringify(INITIAL_SKILLS));
     }
@@ -41,6 +41,18 @@ export class GameEngine {
    */
   public getState(): GameState {
     return this.state;
+  }
+
+  /**
+   * 覆寫整組技能 (用於遊戲開始時接收 AI 生成的隨機技能)
+   */
+  public setSkills(skills: Skill[]): void {
+      this.state.skills = skills.map(s => ({
+          ...s,
+          progress: s.progress ?? 0,
+          level: s.level ?? 1,
+          maxLevel: s.maxLevel ?? 5
+      }));
   }
 
   /**
@@ -157,9 +169,6 @@ export class GameEngine {
             };
             this.state.skills.push(skill);
             logs.push(`[SYSTEM] 💡 領悟新技能: ${skill.name}`);
-        } else {
-            // 如果技能已存在，則視為獲得經驗或升級提示 (可選邏輯)
-            // 這裡簡單處理：不重複添加
         }
     }
 
@@ -338,9 +347,6 @@ export class GameEngine {
                  if (!this.state.psionics) this.state.psionics = { level: 0, energy: 0, max_energy: 1, abilities: [] };
                  this.state.psionics.max_energy += 1;
                  this.state.psionics.energy = this.state.psionics.max_energy;
-            }
-            if (itemId === 'cyber_eye') {
-                 // 這裡可以透過修改 hidden stats 或僅記錄在 log 讓 AI 知道
             }
         }
 

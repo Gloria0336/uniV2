@@ -15,8 +15,8 @@ import { ShopModal } from './components/ShopModal';
 
 // 設定顯示歷史紀錄的最大長度，優化效能
 const MAX_HISTORY_LEN = 50;
-// 設定新聞最大保留數量
-const MAX_NEWS_LEN = 15;
+// 設定新聞最大保留數量 (依照指令下修至 10)
+const MAX_NEWS_LEN = 10;
 
 const App: React.FC = () => {
   const [gameService] = useState(() => new GameService());
@@ -24,7 +24,8 @@ const App: React.FC = () => {
   
   const [input, setInput] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [sidebarTab, setSidebarTab] = useState<'MAP' | 'NEWS' | 'SKILLS' | 'TEAM'>('MAP');
+  const [sidebarTab, setSidebarTab] = useState<'MAP' | 'SKILLS' | 'TEAM'>('MAP');
+  const [showNewsModal, setShowNewsModal] = useState<boolean>(false);
 
   const [gameState, setGameState] = useState<GameState>({
     playerName: '',
@@ -52,27 +53,22 @@ const App: React.FC = () => {
     psionics: { level: 0, energy: 0, max_energy: 0, abilities: [] },
     skills: [],
     shop: null,
-    // News tracking initialization
     lastNewsDate: '3150-01-01',
     actionStepCount: 0,
     turn: 1,
     worldStage: 1
   });
 
-  // 自動存檔機制 (已優化：存檔瘦身)
+  // 自動存檔機制
   useEffect(() => {
     if (gameState.gameStarted && engineRef.current) {
       try {
-        // 建立存檔專用的輕量化 State
         const minifiedReactState = {
           ...gameState,
-          // 歷史訊息只保留最後 5 則 (作為回顧用，避免存檔無限膨脹)
           history: gameState.history.slice(-5),
-          // 世界觀動態資料也僅保留最新紀錄
           news: (gameState.news || []).slice(-MAX_NEWS_LEN),
           gossip: (gameState.gossip || []).slice(-MAX_NEWS_LEN),
           chronicles: (gameState.chronicles || []).slice(-20),
-          // 注意：credits, location, skills, inventory 等核心數值因 ...gameState 而完整保留
         };
 
         const savePayload = {
@@ -82,7 +78,7 @@ const App: React.FC = () => {
         
         localStorage.setItem('sol_civ_save_v1', JSON.stringify(savePayload));
       } catch (e) {
-        console.warn("Auto-save failed (Storage Full?):", e);
+        console.warn("Auto-save failed:", e);
       }
     }
   }, [gameState]);
@@ -90,7 +86,6 @@ const App: React.FC = () => {
   const startGame = async (name: string, faction: FactionDetails, profile: PlayerProfile, avatarUrl: string, config: GameConfig) => {
     setIsProcessing(true);
     try {
-      // 1. 初始化遊戲狀態
       const initialState: GameState = {
         playerName: name,
         playerProfile: profile,
@@ -121,37 +116,34 @@ const App: React.FC = () => {
         worldStage: 1
       };
 
-      // 2. 啟動本地引擎
       engineRef.current = new GameEngine(initialState);
-      
-      // 3. 啟動 AI 會話 (僅設定 Persona)
       await gameService.startSession(name, faction, profile, config);
-
-      // 4. 更新 React 狀態 (立即顯示 HUD 數值，此時 Engine 已經會初始化 Default Skills)
       setGameState(engineRef.current.getState());
 
-      // 5. 生成開場劇情
-      const introLog = `[SYSTEM] Neural Link Established. Subject: ${name}. Faction: ${faction.name}. Location: ${initialState.location}. Initializing faction database.`;
-      const narrative = await gameService.generateStory(introLog, initialState, "Initialize world state: Generate initial Faction News and Gossip.");
+      const introLog = `[SYSTEM] Neural Link Established. Subject: ${name}. Faction: ${faction.name}. Location: ${initialState.location}. Initializing faction database and randomizing initial skill set.`;
+      const narrative = await gameService.generateStory(introLog, initialState, "Initialize world state: Generate initial Faction News, Gossip, and RANDOM INITIAL SKILLS based on faction.");
       
-      // 6. 混合更新
-      setGameState(prev => ({ 
-        ...prev, 
-        ...narrative,
-        // 開場時，技能完全信任 Engine 初始化結果
-        skills: engineRef.current!.getState().skills, 
-        
-        factions: narrative.factions || prev.factions,
-        myFaction: narrative.myFaction || prev.myFaction,
-        reputation: narrative.reputation || prev.reputation,
-        
-        history: [{ 
-          role: 'model' as const, 
-          content: narrative.description, 
-          timestamp: Date.now(), 
-          imagePrompt: narrative.image_prompt 
-        } as ChatMessage]
-      }));
+      if (narrative.game_events?.initial_skills && engineRef.current) {
+          engineRef.current.setSkills(narrative.game_events.initial_skills);
+      }
+
+      setGameState(prev => {
+        const latestEngineState = engineRef.current!.getState();
+        return { 
+          ...prev, 
+          ...narrative,
+          skills: latestEngineState.skills,
+          factions: narrative.factions || prev.factions,
+          myFaction: narrative.myFaction || prev.myFaction,
+          reputation: narrative.reputation || prev.reputation,
+          history: [{ 
+            role: 'model' as const, 
+            content: narrative.description, 
+            timestamp: Date.now(), 
+            imagePrompt: narrative.image_prompt 
+          } as ChatMessage]
+        };
+      });
 
     } catch (error: any) { 
       alert("啟動失敗: " + error.message); 
@@ -168,7 +160,6 @@ const App: React.FC = () => {
     setInput('');
     setIsProcessing(true);
     
-    // 1. 立即顯示玩家輸入 (State 裁切優化)
     if (!silent) {
       setGameState(prev => ({ 
         ...prev, 
@@ -178,13 +169,10 @@ const App: React.FC = () => {
     }
     
     try {
-      // 2. Engine 運算 (移動、休息、交易等 Cost 計算)
-      // Engine 內部會在此時 advanceTurn() 並可能回傳 [PLOT EVENT] 字串
       let systemLog = `[USER ACTION] ${userAction}`;
       const lower = userAction.toLowerCase();
       let engineUpdated = false;
 
-      // 指令解析
       if (lower.match(/^(travel|move|前往|移動)\s+/)) {
           const dest = userAction.split(/\s+/).slice(1).join(' ');
           systemLog = engineRef.current.processAction('TRAVEL', dest);
@@ -208,32 +196,24 @@ const App: React.FC = () => {
                setGameState(prev => ({ ...prev, shop: null })); 
            }
       } else {
-           // 處理普通對話指令，也需要讓 Engine 推進回合
            systemLog = engineRef.current.processAction('TALK', null);
            engineUpdated = true;
       }
 
-      // 3. Engine 狀態同步 & News/Gossip 觸發判定
       let currentEngineState = engineRef.current.getState();
-      
-      // 計算自上次行動後的狀態變化
       const prevDate = new Date(gameState.lastNewsDate || gameState.date).getTime();
       const currDate = new Date(currentEngineState.date).getTime();
       const dayDiff = (currDate - prevDate) / (1000 * 3600 * 24);
-      
       const prevStep = gameState.actionStepCount || 0;
       const newStep = prevStep + 1;
-      
       let specialRequest = "";
       let newLastNewsDate = gameState.lastNewsDate;
 
-      // 判定邏輯: 每3天一次新聞
       if (dayDiff >= 3) {
         specialRequest += " [EVENT TRIGGER] It has been 3+ days. Please generate NEW Faction News updates.";
         newLastNewsDate = currentEngineState.date;
       }
 
-      // 判定邏輯: 每3次行動一次流言
       if (newStep % 3 === 0) {
         specialRequest += " [EVENT TRIGGER] 3 Actions passed. Please generate fresh Gossip/Rumors.";
       }
@@ -246,9 +226,7 @@ const App: React.FC = () => {
           }));
       }
 
-      // 4. AI 敘事生成
       const narrative = await gameService.generateStory(systemLog, currentEngineState, specialRequest);
-      
       const modelMsg: ChatMessage = { 
         role: 'model', 
         content: narrative.description, 
@@ -257,40 +235,33 @@ const App: React.FC = () => {
         silent 
       };
 
-      // 5. 處理 AI 回傳的遊戲事件 (XP, HP, LevelUp, NewSkill)
       let eventLogs: string[] = [];
       if (narrative.game_events) {
          eventLogs = engineRef.current.applyGameEvents(narrative.game_events);
-         // 重新取得應用事件後的 Engine 狀態 (包含新技能)
          currentEngineState = engineRef.current.getState();
       }
       
-      // 6. 最終狀態更新 (混合 Engine 數值與 AI 敘事)
       setGameState(prev => {
         const newHistory = silent ? prev.history : [...prev.history, modelMsg];
-        // 將 Engine 產生的事件訊息 (升級、受傷) 加到對話紀錄
         if (eventLogs.length > 0 && !silent) {
             eventLogs.forEach(log => {
                 newHistory.push({ role: 'system' as const, content: log, timestamp: Date.now() });
             });
         }
         
-        // State 裁切優化
         const trimmedHistory = newHistory.slice(-MAX_HISTORY_LEN);
-        
-        // 新聞與流言堆疊邏輯
         const incomingNews: FactionNews[] = (narrative.news || []).map(n => ({
              ...n, 
              turn: currentEngineState.turn,
              isMajorEvent: false
         }));
         
-        const combinedNews = [...(prev.news || []), ...incomingNews].slice(-MAX_NEWS_LEN);
-        const combinedGossip = [...(prev.gossip || []), ...(narrative.gossip || [])].slice(-MAX_NEWS_LEN);
+        // 依照指令：新聞與流言堆疊上限改為 10
+        const combinedNews = [...(prev.news || []), ...incomingNews].slice(-10);
+        const combinedGossip = [...(prev.gossip || []), ...(narrative.gossip || [])].slice(-10);
 
         return {
             ...prev,
-            // 優先使用 Engine 的硬數值
             credits: currentEngineState.credits,
             health: currentEngineState.health,
             level: currentEngineState.level,
@@ -303,26 +274,16 @@ const App: React.FC = () => {
             inventory: currentEngineState.inventory,
             turn: currentEngineState.turn,
             worldStage: currentEngineState.worldStage,
-            
-            // 技能完全信任 Engine，不再讀取 narrative.skills
             skills: currentEngineState.skills,
-
-            // 更新計數器
             lastNewsDate: newLastNewsDate,
             actionStepCount: newStep,
-
-            // 使用 AI 的軟數值
             history: trimmedHistory,
             currentOptions: narrative.options || [],
             latestImagePrompt: narrative.image_prompt,
-            
             news: combinedNews,
             gossip: combinedGossip,
-            
             chronicles: narrative.chronicles || prev.chronicles,
             shop: narrative.shop,
-
-            // 勢力與聲望仍由 AI 控制 (除非未來也移入 Engine)
             factions: narrative.factions || prev.factions,
             myFaction: narrative.myFaction || prev.myFaction,
             reputation: narrative.reputation || prev.reputation
@@ -343,19 +304,13 @@ const App: React.FC = () => {
 
   const handleSkillUpgrade = (skillName: string) => {
     if (!engineRef.current) return;
-    
-    // 呼叫 Engine 進行升級運算
     const resultMsg = engineRef.current.upgradeSkill(skillName);
     const updatedState = engineRef.current.getState();
-
-    // 更新 UI State
     setGameState(prev => ({ 
         ...prev, 
-        skills: updatedState.skills, // 確保 UI 同步最新的技能等級
+        skills: updatedState.skills, 
         freeSkillPoints: updatedState.freeSkillPoints
     }));
-    
-    // 顯示升級結果日誌
     if (resultMsg) {
          setGameState(prev => ({ 
              ...prev, 
@@ -378,6 +333,15 @@ const App: React.FC = () => {
     <div className="flex flex-col h-screen bg-void-black text-white font-sans overflow-hidden">
       <HUD state={gameState} />
       
+      {/* 獨立懸浮新聞按鈕 */}
+      <button 
+        onClick={() => setShowNewsModal(true)}
+        className="fixed top-4 right-4 z-[60] w-12 h-12 bg-black border-2 border-neon-blue text-neon-blue flex items-center justify-center rounded shadow-[0_0_15px_rgba(0,243,255,0.4)] hover:bg-neon-blue hover:text-black transition-all group"
+      >
+        <span className="text-xl group-hover:scale-110 transition-transform">📰</span>
+        <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-neon-red rounded-full animate-pulse border border-black"></div>
+      </button>
+
       {gameState.shop && (
           <ShopModal 
               shop={gameState.shop} 
@@ -385,6 +349,16 @@ const App: React.FC = () => {
               onBuy={handleBuyItem} 
               onClose={handleCloseShop} 
           />
+      )}
+
+      {/* 新版 NewsPanel Modal */}
+      {showNewsModal && (
+        <NewsPanel 
+          news={gameState.news || []} 
+          gossip={gameState.gossip} 
+          chronicles={gameState.chronicles} 
+          onClose={() => setShowNewsModal(false)}
+        />
       )}
 
       <div className="flex-1 flex overflow-hidden max-w-[1920px] mx-auto w-full">
@@ -404,9 +378,11 @@ const App: React.FC = () => {
             </form>
           </div>
         </div>
+        
+        {/* 側邊欄：僅保留 MAP, SKILLS, TEAM */}
         <div className="hidden lg:flex flex-col w-96 bg-black/40 border-l border-neon-blue/10">
           <div className="flex border-b border-neon-blue/20">
-            {(['MAP', 'SKILLS', 'TEAM', 'NEWS'] as const).map(tab => (
+            {(['MAP', 'SKILLS', 'TEAM'] as const).map(tab => (
               <button key={tab} onClick={() => setSidebarTab(tab)} className={`flex-1 py-3 text-[10px] tracking-widest font-bold font-mono transition-colors ${sidebarTab === tab ? 'text-neon-blue border-b-2 border-neon-blue bg-neon-blue/5' : 'text-gray-500 hover:text-gray-300'}`}>
                 {tab}
               </button>
@@ -414,7 +390,6 @@ const App: React.FC = () => {
           </div>
           <div className="flex-1 overflow-hidden">
             {sidebarTab === 'MAP' && <StarMap location={gameState.location} />}
-            {sidebarTab === 'NEWS' && <NewsPanel news={gameState.news || []} gossip={gameState.gossip} chronicles={gameState.chronicles} />}
             {sidebarTab === 'SKILLS' && <SkillsPanel skills={gameState.skills || []} psionics={gameState.psionics} experience={gameState.experience || 0} freeSkillPoints={gameState.freeSkillPoints || 0} onUpgradeSkill={handleSkillUpgrade} />}
             {sidebarTab === 'TEAM' && <TeamPanel faction={gameState.myFaction} />}
           </div>
