@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useEffect } from 'react';
 
 interface StarMapProps {
@@ -16,17 +17,15 @@ export const StarMap: React.FC<StarMapProps> = ({ location, className }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('ORBIT');
   const [travelProgress, setTravelProgress] = useState(0);
 
-  // Safe parsing for location string to prevent crash
   const safeLocation = String(location || "");
   const parts = safeLocation.split('-');
-  const regionName = parts.length > 1 ? parts[1].trim() : "深空 (DEEP SPACE)";
+  const regionName = parts.length > 1 ? parts[1].trim() : "深空區域 (DEEP SPACE)";
 
   const targetLocation = useMemo(() => {
     let body: BodyType = 'unknown';
     let moon: MoonType = 'none';
     const loc = safeLocation.toLowerCase();
 
-    // Enhanced Matching Logic
     if (loc.includes('月球') || loc.includes('luna')) { body = 'earth'; moon = 'luna'; }
     else if (loc.includes('火衛') || loc.includes('phobos')) { body = 'mars'; moon = 'phobos'; }
     else if (loc.includes('木衛二') || loc.includes('europa') || loc.includes('ganymede') || loc.includes('callisto')) { body = 'jupiter'; moon = 'europa'; }
@@ -67,19 +66,15 @@ export const StarMap: React.FC<StarMapProps> = ({ location, className }) => {
     }
   }, [targetLocation, activeBody, activeMoon]);
 
-  // Faction Colors:
-  // EUG (Earth, Jupiter): Blue/White/Clean
-  // Red Cult (Saturn): Red/Gold
-  // Free People (Mars, Belt, Venus): Green/Rust/Neon
   const getSystemConfig = (body: BodyType) => {
     switch(body) {
-        case 'venus': return { r: 40, angle: 220, color: 'bg-green-400 shadow-[0_0_10px_#4ade80]', faction: 'FREE PEOPLE' };
-        case 'earth': return { r: 70, angle: 0, color: 'bg-cyan-200 shadow-[0_0_15px_white]', faction: 'EUG' };
-        case 'mars': return { r: 100, angle: 120, color: 'bg-orange-600 shadow-[0_0_10px_#ea580c]', faction: 'FREE PEOPLE' };
-        case 'belt': return { r: 130, angle: 240, color: 'bg-gray-500 shadow-[0_0_5px_gray]', faction: 'FREE PEOPLE' };
-        case 'jupiter': return { r: 170, angle: 60, color: 'bg-orange-100 shadow-[0_0_20px_white]', faction: 'EUG' };
-        case 'saturn': return { r: 210, angle: 160, color: 'bg-red-600 shadow-[0_0_15px_#dc2626]', faction: 'RED CULT' };
-        default: return { r: 0, angle: 0, color: 'bg-gray-500', faction: 'UNKNOWN' };
+        case 'venus': return { r: 40, angle: 220, color: 'bg-green-400 shadow-[0_0_10px_#4ade80]', faction: '自由民' };
+        case 'earth': return { r: 70, angle: 0, color: 'bg-cyan-200 shadow-[0_0_15px_white]', faction: '地球聯合政府' };
+        case 'mars': return { r: 100, angle: 120, color: 'bg-orange-600 shadow-[0_0_10px_#ea580c]', faction: '自由民' };
+        case 'belt': return { r: 130, angle: 240, color: 'bg-gray-500 shadow-[0_0_5px_gray]', faction: '自由民' };
+        case 'jupiter': return { r: 170, angle: 60, color: 'bg-orange-100 shadow-[0_0_20px_white]', faction: '地球聯合政府' };
+        case 'saturn': return { r: 210, angle: 160, color: 'bg-red-600 shadow-[0_0_15px_#dc2626]', faction: '紅教' };
+        default: return { r: 0, angle: 0, color: 'bg-gray-500', faction: '未知' };
     }
   };
 
@@ -97,13 +92,24 @@ export const StarMap: React.FC<StarMapProps> = ({ location, className }) => {
   }, [viewMode, activeBody, prevBody, travelProgress]);
 
   const currentFaction = getSystemConfig(activeBody).faction;
-  const factionColor = currentFaction === 'EUG' ? 'text-cyan-200' : currentFaction === 'RED CULT' ? 'text-red-500' : 'text-green-400';
+  const factionColor = currentFaction === '地球聯合政府' ? 'text-cyan-200' : currentFaction === '紅教' ? 'text-red-500' : 'text-green-400';
+
+  const bodyNameMap: Record<BodyType, string> = {
+    earth: '地球 (Earth)',
+    mars: '火星 (Mars)',
+    venus: '金星 (Venus)',
+    jupiter: '木星 (Jupiter)',
+    saturn: '土星 (Saturn)',
+    belt: '小行星帶 (Belt)',
+    sun: '太陽',
+    unknown: '未知'
+  };
 
   return (
     <div className={`flex flex-col h-full bg-black/90 border-l border-neon-blue/20 ${className} font-mono`}>
       <div className="p-3 border-b border-neon-blue/20 bg-neon-blue/5 flex justify-between items-center text-[10px]">
-        <span className="text-neon-blue font-bold tracking-[0.2em]">{viewMode === 'TRAVEL' ? '>> WARP DRIVE' : '>> ORBITAL FEED'}</span>
-        <span className={`uppercase font-bold ${factionColor}`}>{currentFaction} SPACE</span>
+        <span className="text-neon-blue font-bold tracking-[0.2em]">{viewMode === 'TRAVEL' ? '>> 曲速引擎運作中' : '>> 軌道即時監控'}</span>
+        <span className={`uppercase font-bold ${factionColor}`}>{currentFaction} 領空</span>
       </div>
 
       <div className="flex-1 relative overflow-hidden flex items-center justify-center">
@@ -125,7 +131,6 @@ export const StarMap: React.FC<StarMapProps> = ({ location, className }) => {
          {/* ORBIT VIEW */}
          <div className={`absolute inset-0 flex items-center justify-center transition-all duration-1000 ${viewMode === 'ORBIT' ? 'scale-100 opacity-100' : 'scale-50 opacity-0'}`}>
             <div className="relative w-64 h-64 flex items-center justify-center">
-                {/* Earth (EUG) - White/Blue Clean */}
                 {activeBody === 'earth' && (
                     <div className="w-40 h-40 rounded-full bg-gradient-to-br from-blue-500 to-blue-900 shadow-[0_0_30px_rgba(59,130,246,0.3)] relative overflow-hidden">
                          <div className="absolute inset-0 border border-white/20 rounded-full"></div>
@@ -133,7 +138,6 @@ export const StarMap: React.FC<StarMapProps> = ({ location, className }) => {
                     </div>
                 )}
                 
-                {/* Mars (Free People) - Rusty/Neon Cyberpunk */}
                 {activeBody === 'mars' && (
                     <div className="w-32 h-32 rounded-full bg-gradient-to-br from-orange-700 to-red-900 shadow-[0_0_30px_rgba(234,88,12,0.3)] relative">
                         <div className="absolute inset-0 border-2 border-green-500/20 rounded-full animate-pulse"></div>
@@ -141,17 +145,14 @@ export const StarMap: React.FC<StarMapProps> = ({ location, className }) => {
                     </div>
                 )}
 
-                {/* Venus (Free People) - Toxic Yellow */}
                 {activeBody === 'venus' && <div className="w-36 h-36 rounded-full bg-yellow-600 shadow-lg border-2 border-yellow-500/30"></div>}
 
-                {/* Jupiter (EUG) - Massive/Clean */}
                 {activeBody === 'jupiter' && (
                     <div className="w-48 h-48 rounded-full bg-gradient-to-b from-orange-200 via-orange-300 to-orange-400 shadow-[0_0_40px_white] relative overflow-hidden">
                         <div className="absolute w-full h-4 bg-white/40 top-1/3 blur-sm"></div>
                     </div>
                 )}
 
-                {/* Saturn (Red Cult) - Red/Dark */}
                 {activeBody === 'saturn' && (
                     <div className="relative w-40 h-40 rounded-full bg-red-900 shadow-[0_0_40px_#991b1b] flex items-center justify-center">
                         <div className="absolute w-[180%] h-1 bg-red-500/50 rounded-full rotate-[15deg]"></div>
@@ -160,7 +161,6 @@ export const StarMap: React.FC<StarMapProps> = ({ location, className }) => {
                     </div>
                 )}
                 
-                {/* Belt (Free People) - Scrappy */}
                 {activeBody === 'belt' && (
                     <div className="w-24 h-24 flex items-center justify-center relative animate-spin-slow">
                         <div className="absolute w-2 h-2 bg-gray-400 top-0"></div>
@@ -170,17 +170,17 @@ export const StarMap: React.FC<StarMapProps> = ({ location, className }) => {
                     </div>
                 )}
 
-                <div className={`absolute bottom-0 right-0 transform translate-x-4 translate-y-4 bg-black/80 border ${currentFaction === 'RED CULT' ? 'border-red-500' : 'border-neon-blue'} p-2 text-[9px] text-white`}>
-                    LOC: {activeBody.toUpperCase()}<br/>
-                    FAC: {currentFaction}<br/>
-                    SUB: {regionName}
+                <div className={`absolute bottom-0 right-0 transform translate-x-4 translate-y-4 bg-black/80 border ${currentFaction === '紅教' ? 'border-red-500' : 'border-neon-blue'} p-2 text-[9px] text-white`}>
+                    目標: {bodyNameMap[activeBody].toUpperCase()}<br/>
+                    控權: {currentFaction}<br/>
+                    區域: {regionName}
                 </div>
             </div>
          </div>
       </div>
 
       <div className="p-4 border-t border-neon-blue/20 bg-black">
-          <div className="text-[9px] text-gray-500 uppercase">Sector Control</div>
+          <div className="text-[9px] text-gray-500 uppercase">區域管轄</div>
           <div className={`font-bold text-sm ${factionColor}`}>{currentFaction}</div>
           <div className="text-gray-400 text-xs mt-1 truncate">{regionName}</div>
       </div>

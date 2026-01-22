@@ -10,7 +10,6 @@ interface TerminalProps {
 export const Terminal: React.FC<TerminalProps> = ({ messages, isProcessing }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   
-  // 優化：過濾掉靜默消息，並只保留最後 50 筆渲染，確保 DOM 輕量化
   const visibleMessages = messages
     .filter(m => !m.silent)
     .slice(-50);
@@ -25,7 +24,7 @@ export const Terminal: React.FC<TerminalProps> = ({ messages, isProcessing }) =>
       
       {visibleMessages.map((msg, idx) => (
         <div
-          key={msg.timestamp + idx} // 使用 timestamp 增加 key 的唯一性
+          key={msg.timestamp + idx} 
           className={`flex flex-col ${
             msg.role === 'user' ? 'items-end' : 'items-start'
           } animate-fade-in`}
@@ -34,7 +33,7 @@ export const Terminal: React.FC<TerminalProps> = ({ messages, isProcessing }) =>
             <div className="max-w-[85%] md:max-w-[70%] mb-2 rounded-lg overflow-hidden border border-neon-blue/30 shadow-[0_0_15px_rgba(0,243,255,0.2)]">
               <img 
                 src={`https://image.pollinations.ai/prompt/${encodeURIComponent(msg.imagePrompt + " sci-fi concept art 8k")}?width=800&height=450&nologo=true`} 
-                alt="Scene Visualization"
+                alt="場景可視化"
                 className="w-full h-auto object-cover opacity-90 hover:opacity-100 transition-opacity"
                 loading="lazy"
               />

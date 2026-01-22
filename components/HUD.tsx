@@ -7,14 +7,13 @@ interface HUDProps {
 }
 
 export const HUD: React.FC<HUDProps> = ({ state }) => {
-  // 防禦性變數擷取
   const psionics = state?.psionics;
   const isAwakened = (psionics?.level || 0) > 0;
   const psiEnergy = Number(psionics?.energy || 0);
   const psiMax = Number(psionics?.max_energy || 1);
   const psiPercent = isAwakened ? (psiEnergy / psiMax) * 100 : 0;
 
-  const safeLocation = String(state?.location || "Unknown Sector");
+  const safeLocation = String(state?.location || "未知區域");
   const displayLocation = safeLocation.includes('-') 
     ? safeLocation.split('-')[0].trim() 
     : safeLocation;
@@ -26,9 +25,8 @@ export const HUD: React.FC<HUDProps> = ({ state }) => {
   const credits = Number(state?.credits ?? 0);
   const level = Number(state?.level ?? 1);
 
-  // 取得完整的勢力名稱
   const currentFaction = FACTIONS.find(f => f.id === state.factionId);
-  const factionName = currentFaction ? currentFaction.name : (state.factionId || "Freelancer");
+  const factionName = currentFaction ? currentFaction.name : (state.factionId || "自由傭兵");
 
   return (
     <div className="w-full bg-void-black border-b border-neon-blue/30 p-2 md:p-3 shadow-[0_0_20px_rgba(0,243,255,0.1)] z-20 sticky top-0">
@@ -39,7 +37,7 @@ export const HUD: React.FC<HUDProps> = ({ state }) => {
              {state?.avatarUrl ? (
                  <img src={state.avatarUrl} alt="Player" className="w-full h-full object-cover" />
              ) : (
-                 <div className="w-full h-full bg-gray-900 flex items-center justify-center text-xs text-gray-600">NO ID</div>
+                 <div className="w-full h-full bg-gray-900 flex items-center justify-center text-xs text-gray-600">無 ID</div>
              )}
              <div className="absolute inset-0 bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.4)_50%)] bg-[length:100%_4px] pointer-events-none"></div>
              
@@ -48,46 +46,46 @@ export const HUD: React.FC<HUDProps> = ({ state }) => {
              )}
              
              <div className="absolute bottom-0 right-0 bg-neon-blue text-black text-[10px] font-bold px-1.5 rounded-tl">
-                LV.{level}
+                等級 {level}
              </div>
         </div>
 
         {/* Info Blocks */}
-        <div className="flex-1 flex flex-col justify-center gap-1.5">
+        <div className="flex-1 flex flex-col justify-center gap-1">
             
             {/* Top Row: Identity Info */}
             <div className="flex flex-col md:flex-row md:items-end justify-between border-b border-white/10 pb-1">
                 <div className="flex flex-col">
                     <div className="flex items-baseline gap-2">
                         <span className="text-white font-bold text-lg leading-none tracking-wide">
-                            {state.playerName || "Unknown Agent"}
+                            {state.playerName || "未知特工"}
                         </span>
                         <span className="text-[10px] text-neon-blue bg-neon-blue/10 px-1 rounded uppercase font-bold tracking-wider">
-                            {state.identity || "Operative"}
+                            {state.identity || "操作員"}
                         </span>
                     </div>
                     <span className="text-[10px] text-gray-400 font-mono mt-0.5">
-                         AFFILIATION: <span className={currentFaction?.colorTheme.split(' ')[2] || 'text-gray-300'}>{factionName}</span>
+                         隸屬勢力: <span className={currentFaction?.colorTheme.split(' ')[2] || 'text-gray-300'}>{factionName}</span>
                     </span>
                 </div>
 
                 <div className="flex items-center gap-4 mt-1 md:mt-0 font-mono text-xs">
                      <span className="text-neon-blue font-bold">
-                        LOC: {(displayLocation || "DEEP SPACE").toUpperCase()}
+                        座標: {(displayLocation || "深空區域").toUpperCase()}
                      </span>
                      <span className="text-gray-400 hidden md:inline">|</span>
                      <span className="text-gray-300">
-                        DATE: {String(state?.date || "3150-01-01")}
+                        日期: {String(state?.date || "3150-01-01")}
                      </span>
                 </div>
             </div>
 
-            {/* Bottom Row: Stats Bars */}
+            {/* Middle Row: Stats Bars */}
             <div className="flex gap-3 items-center w-full mt-0.5">
                 {/* Health */}
                 <div className="flex-1 max-w-[140px] relative h-2.5 bg-gray-800 rounded-sm overflow-hidden group border border-gray-700">
                     <div className={`h-full transition-all duration-500 ${health > 50 ? 'bg-neon-green' : 'bg-neon-red'}`} style={{ width: `${Math.min(100, health)}%` }}></div>
-                    <span className="absolute inset-0 flex items-center justify-center text-[8px] text-white mix-blend-difference font-bold opacity-80">HP {health}%</span>
+                    <span className="absolute inset-0 flex items-center justify-center text-[8px] text-white mix-blend-difference font-bold opacity-80">生命值 {health}%</span>
                 </div>
 
                 {/* AP */}
@@ -101,22 +99,47 @@ export const HUD: React.FC<HUDProps> = ({ state }) => {
                 {/* XP */}
                 <div className="flex-1 max-w-[140px] relative h-2.5 bg-gray-800 rounded-sm overflow-hidden group border border-gray-700">
                     <div className="h-full bg-cyan-400 transition-all duration-500" style={{ width: `${Math.min(100, experience)}%` }}></div>
-                    <span className="absolute inset-0 flex items-center justify-center text-[8px] text-black font-bold opacity-60">XP {experience}/100</span>
+                    <span className="absolute inset-0 flex items-center justify-center text-[8px] text-black font-bold opacity-60">經驗值 {experience}/100</span>
                 </div>
 
                 {isAwakened && (
                     <div className="flex-1 max-w-[100px] relative h-2.5 bg-gray-800 rounded-sm overflow-hidden group border border-purple-500/50">
                         <div className="h-full bg-purple-500 transition-all duration-500" style={{ width: `${Math.min(100, psiPercent)}%` }}></div>
-                        <span className="absolute inset-0 flex items-center justify-center text-[8px] text-white font-bold opacity-80">PSI</span>
+                        <span className="absolute inset-0 flex items-center justify-center text-[8px] text-white font-bold opacity-80">靈能</span>
                     </div>
                 )}
 
                 <div className="ml-auto flex items-baseline gap-1">
-                    <span className="text-yellow-400 font-mono font-bold text-sm text-shadow-glow">
+                    <span className="text-shadow-glow text-sm font-bold font-mono text-yellow-400">
                         {credits.toLocaleString()}
                     </span>
-                    <span className="text-[9px] text-yellow-600 font-bold">CR</span>
+                    <span className="text-[9px] font-bold text-yellow-600">CR</span>
                 </div>
+            </div>
+
+            {/* Bottom Row: Inventory / Backpack Slots */}
+            <div className="flex gap-1.5 mt-1.5 overflow-x-auto pb-1 items-center custom-scrollbar no-scrollbar">
+                <span className="text-[8px] text-gray-500 font-mono uppercase mr-1 tracking-[0.2em] shrink-0 border-r border-gray-800 pr-2">裝備存儲 (INV)</span>
+                
+                {(!state.inventory || state.inventory.length === 0) ? (
+                    <div className="text-[8px] text-gray-700 italic font-mono px-2">無物品 (EMPTY)</div>
+                ) : (
+                    state.inventory.map((item, i) => (
+                        <div key={i} className="group relative shrink-0">
+                            <div className="px-2 py-0.5 bg-neon-blue/5 border border-neon-blue/20 text-[9px] text-cyan-100 font-mono hover:border-neon-blue hover:bg-neon-blue/10 transition-all cursor-help rounded-sm shadow-[0_0_5px_rgba(0,243,255,0.05)]">
+                                {item}
+                            </div>
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block bg-black border border-neon-blue/50 text-[8px] text-neon-blue px-2 py-1 whitespace-nowrap z-50 rounded shadow-xl">
+                                物品序號: #{i + 1}
+                            </div>
+                        </div>
+                    ))
+                )}
+                
+                {/* Empty slot placeholders */}
+                {[...Array(Math.max(0, 6 - (state.inventory?.length || 0)))].map((_, i) => (
+                    <div key={`empty-${i}`} className="w-10 h-4 border border-white/5 bg-white/5 rounded-sm shrink-0 border-dashed"></div>
+                ))}
             </div>
         </div>
       </div>

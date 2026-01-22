@@ -71,7 +71,7 @@ export const Intro: React.FC<IntroProps> = ({ onStart, isLoading }) => {
     }
     const faction = FACTIONS.find(f => f.id === selectedFaction);
     if (faction) {
-      const profile: PlayerProfile = { gender, personality: personality || 'Unknown', appearance: appearance || 'Cyberpunk explorer' };
+      const profile: PlayerProfile = { gender, personality: personality || '未知', appearance: appearance || '賽博龐克探索者' };
       const config: GameConfig = { provider, openRouterKey, openRouterModel };
       onStart(name, faction, profile, avatarPreview, config);
     }
@@ -83,14 +83,14 @@ export const Intro: React.FC<IntroProps> = ({ onStart, isLoading }) => {
         
         {/* Sidebar Nav */}
         <div className="md:w-20 bg-black/80 border-r border-neon-blue/20 flex md:flex-col items-center py-6 gap-6">
-             <button onClick={() => setActiveTab('AUTH')} className={`w-12 h-12 rounded border transition-all flex items-center justify-center font-bold ${activeTab === 'AUTH' ? 'bg-neon-blue border-neon-blue text-black' : 'border-gray-700 text-gray-500'}`}>KEY</button>
-             <button onClick={() => setActiveTab('IDENTITY')} className={`w-12 h-12 rounded border transition-all flex items-center justify-center font-bold ${activeTab === 'IDENTITY' ? 'bg-neon-blue border-neon-blue text-black' : 'border-gray-700 text-gray-500'}`}>ID</button>
-             <button onClick={() => setActiveTab('PROFILE')} className={`w-12 h-12 rounded border transition-all flex items-center justify-center font-bold ${activeTab === 'PROFILE' ? 'bg-neon-blue border-neon-blue text-black' : 'border-gray-700 text-gray-500'}`}>PR</button>
+             <button onClick={() => setActiveTab('AUTH')} className={`w-12 h-12 rounded border transition-all flex items-center justify-center font-bold ${activeTab === 'AUTH' ? 'bg-neon-blue border-neon-blue text-black' : 'border-gray-700 text-gray-500'}`}>金鑰</button>
+             <button onClick={() => setActiveTab('IDENTITY')} className={`w-12 h-12 rounded border transition-all flex items-center justify-center font-bold ${activeTab === 'IDENTITY' ? 'bg-neon-blue border-neon-blue text-black' : 'border-gray-700 text-gray-500'}`}>身份</button>
+             <button onClick={() => setActiveTab('PROFILE')} className={`w-12 h-12 rounded border transition-all flex items-center justify-center font-bold ${activeTab === 'PROFILE' ? 'bg-neon-blue border-neon-blue text-black' : 'border-gray-700 text-gray-500'}`}>檔案</button>
         </div>
 
         <div className="flex-1 flex flex-col min-w-0 p-8">
             <h1 className="text-4xl font-bold text-neon-blue tracking-tighter mb-6 uppercase">
-              {activeTab === 'AUTH' ? 'System Authorization' : activeTab === 'IDENTITY' ? 'Neural ID Initialization' : 'Biometric Profile'}
+              {activeTab === 'AUTH' ? '系統授權核准' : activeTab === 'IDENTITY' ? '神經鏈接初始化' : '生物特徵檔案'}
             </h1>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar">
@@ -98,11 +98,11 @@ export const Intro: React.FC<IntroProps> = ({ onStart, isLoading }) => {
                     <div className="space-y-6 animate-fade-in">
                         <div className="grid grid-cols-2 gap-4">
                             <button onClick={() => setProvider('GEMINI')} className={`p-4 border-2 rounded text-left transition-all ${provider === 'GEMINI' ? 'border-neon-blue bg-neon-blue/10' : 'border-gray-800 bg-gray-900/40 opacity-50'}`}>
-                                <div className="font-bold">SYSTEM CORE</div>
+                                <div className="font-bold">系統核心 (SYSTEM CORE)</div>
                                 <div className="text-[10px] text-gray-400">Gemini 3 Flash Preview</div>
                             </button>
                             <button onClick={() => setProvider('OPENROUTER')} className={`p-4 border-2 rounded text-left transition-all ${provider === 'OPENROUTER' ? 'border-neon-blue bg-neon-blue/10' : 'border-gray-800 bg-gray-900/40 opacity-50'}`}>
-                                <div className="font-bold">EXTENDED NODE</div>
+                                <div className="font-bold">外部節點 (EXTENDED NODE)</div>
                                 <div className="text-[10px] text-gray-400">OpenRouter (Relay)</div>
                             </button>
                         </div>
@@ -111,7 +111,7 @@ export const Intro: React.FC<IntroProps> = ({ onStart, isLoading }) => {
                             <div className="bg-white/5 border border-neon-blue/20 p-6 rounded text-center space-y-4">
                                 <p className="text-xs text-gray-400">Gemini 3 Flash 需要您的付費 API 金鑰。系統將透過安全彈窗調用。</p>
                                 <button onClick={handleSelectGeminiKey} className={`px-6 py-3 border rounded font-mono text-sm tracking-widest transition-all ${hasGeminiKey ? 'border-neon-green text-neon-green bg-neon-green/10' : 'border-neon-blue text-neon-blue hover:bg-neon-blue hover:text-black'}`}>
-                                    {hasGeminiKey ? '[ AUTH_KEY_READY ]' : '[ SELECT API KEY ]'}
+                                    {hasGeminiKey ? '[ 金鑰已就緒 ]' : '[ 選擇 API 金鑰 ]'}
                                 </button>
                                 <div className="text-[9px] text-gray-600">
                                     註：請確保金鑰來自已啟動計費的專案 (<a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="underline">說明文件</a>)
@@ -124,7 +124,7 @@ export const Intro: React.FC<IntroProps> = ({ onStart, isLoading }) => {
                                     <input type="password" value={openRouterKey} onChange={e => setOpenRouterKey(e.target.value)} className="w-full bg-black border border-gray-700 p-2 text-sm font-mono outline-none focus:border-neon-blue" placeholder="sk-or-v1-..." />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] text-neon-blue mb-1">MODEL_ID</label>
+                                    <label className="block text-[10px] text-neon-blue mb-1">模型代號 (MODEL_ID)</label>
                                     <input value={openRouterModel} onChange={e => setOpenRouterModel(e.target.value)} className="w-full bg-black border border-gray-700 p-2 text-sm font-mono outline-none focus:border-neon-blue" placeholder="anthropic/claude-3.5-sonnet" />
                                 </div>
                             </div>
@@ -132,7 +132,7 @@ export const Intro: React.FC<IntroProps> = ({ onStart, isLoading }) => {
 
                         <div className="flex flex-col gap-3">
                             <button onClick={handleTestConnection} className="w-full py-3 border border-white/20 text-xs font-mono uppercase tracking-widest hover:bg-white/5">
-                                [ VERIFY_NEURAL_LINK ]
+                                [ 驗證神經鏈接 ]
                             </button>
                             {testStatus.msg && (
                                 <div className={`text-[10px] p-2 font-mono text-center ${testStatus.type === 'error' ? 'text-neon-red' : testStatus.type === 'success' ? 'text-neon-green' : 'text-neon-blue animate-pulse'}`}>
@@ -147,7 +147,7 @@ export const Intro: React.FC<IntroProps> = ({ onStart, isLoading }) => {
                     <div className="space-y-6 animate-fade-in">
                         <div>
                             <label className="block text-xs text-neon-blue font-mono mb-2">IDENTIFIER / 玩家代號</label>
-                            <input value={name} onChange={e => setName(e.target.value)} className="w-full bg-black border border-neon-blue/30 p-4 text-xl outline-none focus:border-neon-blue" placeholder="ENTER NAME..." />
+                            <input value={name} onChange={e => setName(e.target.value)} className="w-full bg-black border border-neon-blue/30 p-4 text-xl outline-none focus:border-neon-blue" placeholder="輸入代號..." />
                         </div>
                         <div>
                             <label className="block text-xs text-neon-blue font-mono mb-2">SELECT FACTION / 勢力選擇</label>
@@ -184,12 +184,12 @@ export const Intro: React.FC<IntroProps> = ({ onStart, isLoading }) => {
                                 <textarea value={appearance} onChange={e => setAppearance(e.target.value)} className="w-full bg-black border border-gray-700 p-3 h-24 outline-none resize-none" placeholder="描述你的生化植入物或著裝..."></textarea>
                             </div>
                             <button onClick={handleGenerateAvatar} disabled={isGeneratingAvatar} className="w-full py-3 border border-neon-blue text-neon-blue hover:bg-neon-blue hover:text-black transition-all text-xs font-mono uppercase">
-                                {isGeneratingAvatar ? 'Synthesizing...' : '[ Generate Avatar ]'}
+                                {isGeneratingAvatar ? '正在合成...' : '[ 生成頭像 ]'}
                             </button>
                         </div>
                         <div className="flex flex-col items-center justify-center bg-white/5 border border-white/10 rounded-lg p-4">
                             <div className="w-48 h-48 border-2 border-neon-blue/30 overflow-hidden bg-black relative shadow-[0_0_20px_rgba(0,243,255,0.1)]">
-                                {avatarPreview ? <img src={avatarPreview} className="w-full h-full object-contain" alt="Avatar" /> : <div className="w-full h-full flex items-center justify-center text-gray-700 text-[10px] font-mono">SIGNAL LOST</div>}
+                                {avatarPreview ? <img src={avatarPreview} className="w-full h-full object-contain" alt="Avatar" /> : <div className="w-full h-full flex items-center justify-center text-gray-700 text-[10px] font-mono">訊號丟失</div>}
                                 <div className="absolute inset-0 bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.4)_50%)] bg-[length:100%_4px] pointer-events-none"></div>
                             </div>
                         </div>
@@ -199,7 +199,7 @@ export const Intro: React.FC<IntroProps> = ({ onStart, isLoading }) => {
 
             <div className="mt-8">
                 <button onClick={handleStartClick} disabled={isLoading} className={`w-full py-5 font-bold uppercase tracking-widest transition-all shadow-[0_0_15px_rgba(0,243,255,0.2)] ${isLoading ? 'bg-gray-800 text-gray-500 cursor-wait' : 'bg-neon-blue text-black hover:bg-white'}`}>
-                    {isLoading ? 'SYNCING DATA...' : '[ 啟動模擬 ] LAUNCH SIMULATION'}
+                    {isLoading ? '正在同步數據...' : '[ 啟動模擬 ] LAUNCH SIMULATION'}
                 </button>
             </div>
         </div>

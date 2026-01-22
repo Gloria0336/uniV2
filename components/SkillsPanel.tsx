@@ -30,7 +30,7 @@ export const SkillsPanel: React.FC<SkillsPanelProps> = ({ skills = [], psionics,
       
       <div className="mb-6 border border-neon-blue/20 bg-neon-blue/5 p-3 rounded">
         <div className="flex justify-between items-end mb-1">
-            <span className="text-xs text-neon-blue tracking-widest font-bold">EXPERIENCE</span>
+            <span className="text-xs text-neon-blue tracking-widest font-bold">神經經驗值</span>
             <span className="text-xl text-white font-bold">{safeExp} <span className="text-xs text-gray-500">/ 100 XP</span></span>
         </div>
         <div className="w-full bg-gray-800 h-1 rounded-full overflow-hidden mb-2">
@@ -38,18 +38,18 @@ export const SkillsPanel: React.FC<SkillsPanelProps> = ({ skills = [], psionics,
         </div>
         
         <div className="flex justify-between items-center mt-3 bg-black/40 p-2 rounded border border-neon-blue/30">
-            <span className="text-[10px] text-gray-400 uppercase">Neural Credits</span>
+            <span className="text-[10px] text-gray-400 uppercase">神經點數 (Neural Credits)</span>
             <span className={`font-bold ${safePoints > 0 ? 'text-neon-green animate-pulse' : 'text-gray-600'}`}>
-                {safePoints} PTS
+                {safePoints} 點
             </span>
         </div>
       </div>
 
       <div className="space-y-4">
-         <h3 className="text-xs text-gray-500 uppercase tracking-widest border-b border-gray-800 pb-2">Active Neural Links</h3>
+         <h3 className="text-xs text-gray-500 uppercase tracking-widest border-b border-gray-800 pb-2">活性神經鏈接 (Active Skills)</h3>
          
          {safeSkills.length === 0 ? (
-             <div className="text-center py-8 text-gray-600 text-xs italic">SCANNING FOR SIGNATURES...</div>
+             <div className="text-center py-8 text-gray-600 text-xs italic">正在掃描特徵...</div>
          ) : (
              safeSkills.map((skill, idx) => {
                  if (!skill) return null;
@@ -63,7 +63,7 @@ export const SkillsPanel: React.FC<SkillsPanelProps> = ({ skills = [], psionics,
                     <div key={skill.id || idx} className={`p-3 border rounded relative overflow-hidden group animate-fade-in ${getSkillColor(skill.type)}`}>
                         <div className="flex justify-between items-start mb-1 relative z-10">
                             <div className="flex items-center gap-2">
-                               <span className="font-bold text-sm tracking-wide">{String(skill.name || "Unknown") }</span>
+                               <span className="font-bold text-sm tracking-wide">{String(skill.name || "未知技能") }</span>
                                <button 
                                    onClick={() => canUpgrade && onUpgradeSkill(skill.name)}
                                    disabled={!canUpgrade}
@@ -78,7 +78,7 @@ export const SkillsPanel: React.FC<SkillsPanelProps> = ({ skills = [], psionics,
                             </div>
                             <span className="text-[10px] border border-current px-1 rounded">LV.{level}</span>
                         </div>
-                        <div className="text-[10px] opacity-80 mb-2 relative z-10">{String(skill.description || "No link data available.")}</div>
+                        <div className="text-[10px] opacity-80 mb-2 relative z-10">{String(skill.description || "尚無鏈接數據。")}</div>
                         <div className="w-full bg-black/40 h-1 rounded-full overflow-hidden relative z-10">
                             <div className="h-full bg-current opacity-70" style={{ width: `${Math.min(100, progress)}%` }}></div>
                         </div>
@@ -90,13 +90,13 @@ export const SkillsPanel: React.FC<SkillsPanelProps> = ({ skills = [], psionics,
 
       {psionics && (Number(psionics.level || 0) > 0) && (
           <div className="mt-6 pt-4 border-t border-purple-900/30">
-              <h3 className="text-xs text-purple-500 uppercase tracking-widest mb-3">Void Resonance</h3>
+              <h3 className="text-xs text-purple-500 uppercase tracking-widest mb-3">虛空共鳴 (Void Resonance)</h3>
               <div className="p-3 bg-purple-900/10 border border-purple-500/30 rounded text-center">
                   <div className="text-2xl text-white font-bold mb-1">
                     {Number(psionics.energy || 0)} 
                     <span className="text-xs text-gray-400"> / {Number(psionics.max_energy || 1)}</span>
                   </div>
-                  <div className="text-[10px] text-purple-400 uppercase">Psionic Saturation</div>
+                  <div className="text-[10px] text-purple-400 uppercase">靈能飽和度 (Psionic Saturation)</div>
               </div>
           </div>
       )}

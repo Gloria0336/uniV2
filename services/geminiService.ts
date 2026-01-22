@@ -14,7 +14,8 @@ import {
   Skill,
   MyFaction,
   PsionicStatus,
-  GameEvents
+  GameEvents,
+  ActionCategory
 } from '../types';
 
 // 新的敘事專用 Schema
@@ -30,8 +31,16 @@ const narrativeSchema = {
         properties: { 
           id: { type: Type.INTEGER }, 
           text: { type: Type.STRING }, 
-          action_type: { type: Type.STRING } 
-        } 
+          action_type: { 
+            type: Type.STRING,
+            description: "Must be one of: TALK, MOVE_SHORT, MOVE_LONG, COMBAT, ACTION, REST"
+          },
+          ap_cost: {
+            type: Type.INTEGER,
+            description: "The amount of Action Points consumed by this choice."
+          }
+        },
+        required: ["id", "text", "action_type", "ap_cost"]
       } 
     },
     game_events: {
@@ -158,52 +167,34 @@ export interface NarrativeResponse {
 const LORE_DATA = `
 【世界觀重點】
 年份：3150年。
-三大勢力：
-1. 地球聯合政府 (EUG): 高科技、秩序、極權。控制地球與木星。
-2. 紅教 (Red Cult): 機械飛昇宗教、靈能崇拜。控制土星泰坦。
-3. 自由民 (Free People): 海盜、黑客、法外之徒。控制火星與小行星帶。
+三大勢力：EUG (地球木星/秩序)、紅教 (土星/靈能)、自由民 (火星帶/法外)。
 
 【你的角色】
 你不是遊戲引擎，你是「敘事者」。
-你 **不可** 計算日誌、金錢與 **技能列表** (由 Engine 負責)。
-你 **必須** 負責生成「敘事性資料」與「遊戲事件」。
+你必須根據 [SYSTEM LOG] 生成劇情，並為玩家提供下一步的選項 (options)。
+**請務必使用「繁體中文」進行所有文字生成。**
 
-【初始化階段 (Initialization Only)】
-當 systemLog 包含 "[SYSTEM] Neural Link Established" (即遊戲剛開始) 時，你 **必須** 在 game_events 中回傳 initial_skills 陣列。
-請根據玩家的勢力 (Faction) 與背景 (Profile)，隨機設計 3~4 個符合設定的初始技能。
-- 自由民：側重黑客、潛行、走私相關技能。
-- 紅教：側重靈能、機械神學、意志相關技能。
-- EUG：側重戰鬥、科技維護、官僚指揮相關技能。
+【連貫性協議 (Continuity Protocol)】
+1. **互動鎖定**: 若 System Log 中標註了 \`[CONSTRAINT] 鎖定對象\`，你的敘事範圍必須僅侷限於該對象。
+2. **禁止漂移**: 禁止在鎖定狀態下讓新角色突然插話、禁止切換場景、禁止忽視當前對象的對話內容。
+3. **選項引導**: 當玩家鎖定對象時，生成的 \`options\` 應以該對象的深度互動為主（如：追問細節、反駁論點、進行交易等），除非玩家指令明確表示要「離開」。
 
-【遊戲事件 (Game Events)】
-當劇情涉及以下情況時，請使用 'game_events' 物件回傳數值變更，而不要直接修改 status：
-1. **經驗值 (xp_gain)**: 戰鬥勝利 (+20~50)、任務完成 (+100)、發現新地點 (+10)。
-2. **生命變化 (hp_change)**: 戰鬥受傷 (負數，如 -15)、醫療事件 (正數)。
-3. **物品獲得 (new_item)**: 探索發現或 NPC 贈送。
-4. **技能習得 (new_skill)**: 只有當玩家在劇情中「領悟」或「學習」了全新的能力時，才填寫此欄位。
-5. **勢力變更 (reputation_change)**: 使用 keys: earth, mars, belt, jupiter, saturn。
+【行動與 AP 定價規則】
+每個選項 (GameOption) 必須包含 'action_type' 與 'ap_cost'。請遵循以下定價邏輯：
+1. **免費行動 (ap_cost: 0)**: TALK (詢問、閒聊)、MOVE_SHORT (同區域移動)。
+2. **消耗性行動 (ap_cost: 1~2)**: MOVE_LONG (跨星球)、COMBAT (戰鬥)、ACTION (高難度技術工作)。
+3. **恢復行動 (ap_cost: 0)**: REST (休息)。
 
 【資料生成規則】
-1. **技能 (Skills)**: **禁止** 在回傳的 JSON 中包含完整的 skills 陣列。技能狀態已由客戶端託管。除了初始化階段的 initial_skills 外，請使用 game_events.new_skill 來讓玩家獲得單一新技能。
-2. **聲望 (Reputation)**: 用一句帥氣的話描述玩家當前的名聲。
-3. **新聞與流言 (News Limiter)**:
-   - **頻率控制**: 只有在 [SYSTEM REQUEST] 明確要求更新，或是 [SYSTEM LOG] 中出現 \`[PLOT EVENT]\` 或 \`[MAJOR EVENT]\` 時，**才允許**生成 \`news\` 與 \`gossip\`。
-   - **預設行為**: 平時請務必回傳空陣列 \`[]\`，**嚴禁**為了塞版面而隨機編造無關緊要的新聞。
-   - **關聯性**: 新聞內容必須與當前 [SYSTEM LOG] 中的 \`plotContext\` (劇情階段) **高度相關**。
-
-【輸入格式】
-1. [PLAYER STATE]: 玩家當前硬數值。
-2. [SYSTEM LOG]: 剛剛發生的事件結果 (絕對事實，包含 Plot Events)。
-3. [SYSTEM REQUEST]: 特別指示 (如要求新聞更新)。
+1. **語言**: 文字必須為 **繁體中文**。
+2. **選項 (Options)**: 必須回傳 id, text, action_type, ap_cost。數量 3-5 個。
 `;
 
 export class GameService {
   private currentConfig?: GameConfig;
   private systemInstruction: string = "";
-  // 保存對話歷史 (純粹的 User/Model 對話，不含 System)
   private history: { role: string; content: string }[] = [];
-  private readonly TIMEOUT_MS: number = 30000; // Flash model is faster, stricter timeout
-  // 設定最大保留的對話回合數 (10 則訊息 = 5 回合)
+  private readonly TIMEOUT_MS: number = 30000; 
   private readonly MAX_HISTORY_LENGTH: number = 10;
   
   constructor() {}
@@ -212,13 +203,13 @@ export class GameService {
     const attempt = async (remaining: number): Promise<T> => {
       try {
         const timeout = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("Connection Latency Too High")), this.TIMEOUT_MS)
+          setTimeout(() => reject(new Error("連線延遲過高")), this.TIMEOUT_MS)
         );
         return await Promise.race([promise, timeout]);
       } catch (error) {
         if (remaining > 0) {
-          console.warn(`Connection unstable, retrying... (${remaining} attempts left)`);
-          await new Promise(r => setTimeout(r, 1000)); // wait 1s before retry
+          console.warn(`連線不穩定，正在重試... (剩餘 ${remaining} 次)`);
+          await new Promise(r => setTimeout(r, 1000)); 
           return attempt(remaining - 1);
         }
         throw error;
@@ -239,10 +230,10 @@ export class GameService {
         config: { maxOutputTokens: 5 }
       });
       const latency = Math.round(performance.now() - t0);
-      return `Gemini 3 Flash Online (${latency}ms)`;
+      return `Gemini 3 Flash 在線 (${latency}ms)`;
     } else {
-      if (!config.openRouterKey) throw new Error("OpenRouter Key Missing");
-      return `OpenRouter Online (Mock)`;
+      if (!config.openRouterKey) throw new Error("OpenRouter 金鑰缺失");
+      return `OpenRouter 在線 (Mock)`;
     }
   }
 
@@ -255,58 +246,45 @@ ${LORE_DATA}
 勢力: ${faction.name}
 性格: ${profile.personality}
 外貌: ${profile.appearance}
-回傳格式必須為符合 Schema 的 JSON。
+回傳格式必須為符合 Schema 的 JSON。請務必使用繁體中文。
 `;
-    // 重置歷史紀錄
     this.history = [];
   }
 
-  /**
-   * 取得裁切後的 Context Window
-   * 包含最近的 N 則訊息 + 當前最新的 User Prompt
-   */
   private getContextWindow(newPrompt: string): { role: string; content: string }[] {
-    // 1. 取得最近的歷史紀錄 (Pruning)
     const recentHistory = this.history.slice(-this.MAX_HISTORY_LENGTH);
-    // 2. 加入最新的 User Prompt
     return [...recentHistory, { role: 'user', content: newPrompt }];
   }
 
   async generateStory(systemLog: string, currentState: GameState, specialRequests: string = ""): Promise<NarrativeResponse> {
     const contextPrompt = `
 [PLAYER STATE]
-Location: ${currentState.location}
-Date: ${currentState.date}
-HP: ${currentState.health}
-Credits: ${currentState.credits}
-AP: ${currentState.actionPoints}
-Inventory: ${currentState.inventory.join(', ')}
+當前位置: ${currentState.location}
+日期: ${currentState.date}
+生命值: ${currentState.health}
+信用點: ${currentState.credits}
+行動點 (AP): ${currentState.actionPoints}
+庫存: ${currentState.inventory.join(', ')}
 
 [SYSTEM LOG]
 ${systemLog}
 
 [SYSTEM REQUEST]
-${specialRequests || "None. Keep narrative focused."}
+${specialRequests || "無。請保持敘事集中。"}
 
-請根據 [SYSTEM LOG] 生成劇情。
-若發生戰鬥、受傷或獲得獎勵，請務必填寫 game_events 欄位。
+請根據 [SYSTEM LOG] 以繁體中文生成劇情。
 `;
 
-    // 取得裁切後的上下文
     const contextMessages = this.getContextWindow(contextPrompt);
-
     let responseText = "";
 
     if (this.currentConfig?.provider === 'GEMINI') {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-      
-      // 轉換格式符合 Gemini Content 結構
       const geminiContents = contextMessages.map(msg => ({
         role: msg.role === 'user' ? 'user' : 'model',
         parts: [{ text: msg.content }]
       }));
 
-      // 使用 Flash Preview 並加入重試機制
       const response = await this.withTimeout(ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         config: {
@@ -318,25 +296,16 @@ ${specialRequests || "None. Keep narrative focused."}
       })) as GenerateContentResponse;
 
       responseText = response.text || "{}";
-
     } else {
-      // OpenRouter Logic
       const openRouterMessages = [
-        { role: 'system', content: this.systemInstruction + "\nOutput MUST be valid JSON." },
+        { role: 'system', content: this.systemInstruction + "\n回傳格式必須為符合 Schema 的 JSON，且使用繁體中文。" },
         ...contextMessages
       ];
-
       responseText = await this.callOpenRouter(openRouterMessages);
     }
 
-    // 成功後，將這次的對話存入歷史紀錄 (Full History)
-    // 注意：這裡存的是原始 Prompt 與 Response，下一次呼叫時 getContextWindow 會自動裁切
     this.history.push({ role: 'user', content: contextPrompt });
-    
-    // 嘗試解析回應，若解析成功則將回應也存入歷史
     const parsed = this.parseResponse(responseText);
-    
-    // 儲存 AI 的回應到歷史，讓它記得自己說過什麼
     this.history.push({ role: 'model', content: parsed.description });
 
     return parsed;
@@ -359,29 +328,26 @@ ${specialRequests || "None. Keep narrative focused."}
         })
       }));
 
-      if (!response.ok) throw new Error("OpenRouter Connection Error");
+      if (!response.ok) throw new Error("OpenRouter 連線錯誤");
       const data = await response.json();
       return data.choices?.[0]?.message?.content || "{}";
     } catch (e: any) {
-      throw new Error(`OpenRouter Fault: ${e.message}`);
+      throw new Error(`OpenRouter 故障: ${e.message}`);
     }
   }
 
   private parseResponse(text: string | undefined): NarrativeResponse {
-    if (!text) throw new Error("Empty Neural Transmission");
-    
+    if (!text) throw new Error("神經傳輸為空");
     let raw: any = {};
     try {
       const cleaned = text.replace(/```json\n?|\n?```/g, "").trim();
       raw = JSON.parse(cleaned);
     } catch (e) {
-      console.error("JSON Error:", e);
       return {
-        description: "通訊受到干擾... (JSON Parsing Failed)",
-        image_prompt: "static noise, glitch art",
-        options: [{ id: 1, text: "重試訊號", action_type: "retry" }],
-        news: [], gossip: [], chronicles: [], shop: null,
-        factions: undefined, reputation: "Unknown", game_events: undefined
+        description: "通訊受到干擾...",
+        image_prompt: "noise",
+        options: [{ id: 1, text: "重試訊號", action_type: "TALK", ap_cost: 0 }],
+        news: [], gossip: [], chronicles: [], shop: null
       };
     }
 
@@ -390,20 +356,19 @@ ${specialRequests || "None. Keep narrative focused."}
       image_prompt: String(raw.image_prompt || ""),
       options: Array.isArray(raw.options) ? raw.options.map((o: any) => ({
         id: Number(o?.id ?? 0),
-        text: String(o?.text || "Continue"),
-        action_type: String(o?.action_type || "Neutral")
+        text: String(o?.text || "繼續"),
+        action_type: (o?.action_type || "TALK") as ActionCategory,
+        ap_cost: Number(o?.ap_cost ?? 0)
       })) : [],
       game_events: raw.game_events,
-      // Soft Data Handling
       reputation: raw.reputation,
       factions: raw.factions,
       myFaction: raw.myFaction,
-      // World Data
       news: Array.isArray(raw.news) ? raw.news : [],
       gossip: Array.isArray(raw.gossip) ? raw.gossip : [],
       chronicles: Array.isArray(raw.chronicles) ? raw.chronicles : [],
       shop: raw.shop ? {
-        shopName: String(raw.shop.shopName || "Unknown Shop"),
+        shopName: String(raw.shop.shopName || "未知商店"),
         shopDescription: String(raw.shop.shopDescription || ""),
         items: Array.isArray(raw.shop.items) ? raw.shop.items : []
       } : null

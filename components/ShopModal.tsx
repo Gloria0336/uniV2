@@ -21,7 +21,7 @@ export const ShopModal: React.FC<ShopModalProps> = ({ shop, credits, onBuy, onCl
                 <p className="text-xs text-gray-400">{shop.shopDescription}</p>
             </div>
             <div className="text-right">
-                <div className="text-[10px] text-gray-500 uppercase">Current Credits</div>
+                <div className="text-[10px] text-gray-500 uppercase">持有信用點 (Credits)</div>
                 <div className="text-xl font-bold text-yellow-400">{credits.toLocaleString()} CR</div>
             </div>
         </div>
@@ -51,7 +51,7 @@ export const ShopModal: React.FC<ShopModalProps> = ({ shop, credits, onBuy, onCl
                                         : 'border-gray-800 text-gray-600 cursor-not-allowed'
                                     }`}
                                 >
-                                    {canAfford ? 'Purchase' : 'Insufficient Funds'}
+                                    {canAfford ? '購買 (Purchase)' : '信用點不足'}
                                 </button>
                             </div>
                         </div>
@@ -66,7 +66,7 @@ export const ShopModal: React.FC<ShopModalProps> = ({ shop, credits, onBuy, onCl
                 onClick={onClose}
                 className="px-6 py-2 border border-neon-red text-neon-red hover:bg-neon-red hover:text-black transition-all font-mono uppercase text-xs tracking-widest"
             >
-                [ CLOSE CONNECTION ]
+                [ 關閉連結 ]
             </button>
         </div>
       </div>

@@ -9,8 +9,8 @@ export interface FactionNews {
   faction: string;
   status: string;
   headline: string;
-  turn?: number;        // 新增：發生回合
-  isMajorEvent?: boolean; // 新增：是否為大事件
+  turn?: number;        
+  isMajorEvent?: boolean; 
 }
 
 export interface GossipItem {
@@ -119,19 +119,19 @@ export interface GameState {
   psionics?: PsionicStatus;
   skills: Skill[];
   shop?: ShopData | null;
-  // News Control Logic
-  lastNewsDate?: string;    // 上次更新官方新聞的日期
-  actionStepCount?: number; // 行動次數計數器 (用於流言)
-  
-  // Plot Clock
-  turn: number;             // 當前遊戲回合數
-  worldStage: number;       // 世界劇情階段 (1:初期, 2:動盪, 3:戰爭...)
+  lastNewsDate?: string;    
+  actionStepCount?: number; 
+  turn: number;             
+  worldStage: number;
+  interaction: {
+    targetName: string | null;
+    status: 'NONE' | 'ACTIVE';
+  };
 }
 
-// 新增：AI 回傳的遊戲事件
 export interface GameEvents {
   xp_gain?: number;
-  hp_change?: number; // 負數為傷害，正數為治療
+  hp_change?: number; 
   reputation_change?: {
     earth?: number;
     mars?: number;
@@ -145,27 +145,16 @@ export interface GameEvents {
     type: 'INNATE' | 'PSIONIC' | 'TECH' | 'LEADERSHIP';
     description: string;
   };
-  initial_skills?: Skill[]; // 新增：初始化時生成的隨機技能陣列
+  initial_skills?: Skill[]; 
 }
 
-// 新增：本地運算結果介面
-export interface GameActionResult {
-  success: boolean;
-  message: string;        // 系統顯示的結果訊息
-  daysPassed?: number;    // 經過天數
-  cost?: number;          // 消耗信用點
-  apCost?: number;        // 消耗行動點
-  healthChange?: number;  // 生命值變化
-  newLocation?: string;   // 新位置
-  itemsAdded?: string[];  // 獲得物品 ID
-  itemsRemoved?: string[];// 移除物品 ID
-  forceEventTrigger?: boolean; // 是否強制觸發 AI 事件
-}
+export type ActionCategory = 'TALK' | 'MOVE_SHORT' | 'MOVE_LONG' | 'COMBAT' | 'ACTION' | 'REST' | 'TRADE';
 
 export interface GameOption {
   id: number;
   text: string;
-  action_type: string;
+  action_type: ActionCategory;
+  ap_cost: number;
 }
 
 export interface ChatMessage {
