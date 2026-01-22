@@ -99,14 +99,20 @@ const App: React.FC = () => {
       // 4. 更新 React 狀態 (立即顯示 HUD 數值)
       setGameState(initialState);
 
-      // 5. 生成開場劇情
-      const introLog = `[SYSTEM] Neural Link Established. Subject: ${name}. Faction: ${faction.name}. Location: ${initialState.location}.`;
+      // 5. 生成開場劇情 (Prompt 會要求生成初始 Skills 與 Faction Data)
+      const introLog = `[SYSTEM] Neural Link Established. Subject: ${name}. Faction: ${faction.name}. Location: ${initialState.location}. Initializing skills and faction database.`;
       const narrative = await gameService.generateStory(introLog, initialState);
       
-      // 6. 更新劇情到介面
+      // 6. 混合更新
       setGameState(prev => ({ 
         ...prev, 
         ...narrative,
+        // 混合策略：若 AI 有回傳技能/勢力/聲望則更新，否則保留初始值
+        skills: narrative.skills && narrative.skills.length > 0 ? narrative.skills : prev.skills,
+        factions: narrative.factions || prev.factions,
+        myFaction: narrative.myFaction || prev.myFaction,
+        reputation: narrative.reputation || prev.reputation,
+        
         history: [{ 
           role: 'model', 
           content: narrative.description, 
@@ -134,18 +140,18 @@ const App: React.FC = () => {
     if (!silent) {
       setGameState(prev => ({ 
         ...prev, 
-        currentOptions: [], // 清空選項防止重複點擊
+        currentOptions: [], 
         history: [...prev.history, { role: 'user', content: userAction, timestamp: Date.now() }] 
       }));
     }
     
     try {
-      // 2. 解析指令並執行本地運算
+      // 2. Engine 運算
       let systemLog = `[USER ACTION] ${userAction}`;
       const lower = userAction.toLowerCase();
       let engineUpdated = false;
 
-      // 指令解析器
+      // 指令解析
       if (lower.match(/^(travel|move|前往|移動)\s+/)) {
           const dest = userAction.split(/\s+/).slice(1).join(' ');
           systemLog = engineRef.current.processAction('TRAVEL', dest);
@@ -156,7 +162,6 @@ const App: React.FC = () => {
            engineUpdated = true;
       } 
       else if (userAction.includes("[TRANSACTION]")) {
-           // 商店交易邏輯
            const match = userAction.match(/購買物品:\s*(.*?)\s*\(/);
            if (match && match[1]) {
                const itemName = match[1].trim();
@@ -167,22 +172,21 @@ const App: React.FC = () => {
                }
            } else if (userAction.includes("離開")) {
                systemLog = `[SYSTEM] 玩家離開了商店。`;
-               setGameState(prev => ({ ...prev, shop: null })); // 立即關閉商店 UI
+               setGameState(prev => ({ ...prev, shop: null })); 
            }
       }
 
-      // 3. 如果本地引擎有更新，立即同步到 UI (實現數值秒回)
+      // 3. Engine 狀態同步 (硬數值)
       const currentEngineState = engineRef.current.getState();
       if (engineUpdated) {
           setGameState(prev => ({
               ...prev,
-              ...currentEngineState, // 同步 HP, Credits, Date, Location, Inventory
-              history: silent ? prev.history : [...prev.history] // 保持歷史紀錄
+              ...currentEngineState, // 更新 Credits, HP, Date, Location
+              history: silent ? prev.history : [...prev.history] 
           }));
       }
 
-      // 4. 呼叫 AI 生成敘事 (異步)
-      // 這裡將「發生了什麼事 (systemLog)」與「現在的狀態 (currentEngineState)」傳給 AI
+      // 4. AI 敘事生成
       const narrative = await gameService.generateStory(systemLog, currentEngineState);
       
       const modelMsg: ChatMessage = { 
@@ -193,16 +197,31 @@ const App: React.FC = () => {
         silent 
       };
       
-      // 5. 更新 AI 回傳的劇情與選項
+      // 5. 混合更新策略
       setGameState(prev => ({ 
         ...prev, 
+        // 優先使用 Engine 的硬數值 (因為已經在上一步 sync 了，這裡只是防禦性確保)
+        credits: currentEngineState.credits,
+        health: currentEngineState.health,
+        actionPoints: currentEngineState.actionPoints,
+        date: currentEngineState.date,
+        location: currentEngineState.location,
+        inventory: currentEngineState.inventory,
+
+        // 使用 AI 的軟數值 (如果有的話)
         history: silent ? prev.history : [...prev.history, modelMsg],
         currentOptions: narrative.options || [],
         latestImagePrompt: narrative.image_prompt,
-        news: narrative.news || prev.news, // 保留舊新聞如果 AI 沒回傳
+        news: narrative.news || prev.news,
         gossip: narrative.gossip || prev.gossip,
         chronicles: narrative.chronicles || prev.chronicles,
-        shop: narrative.shop // 如果 AI 觸發了商店事件
+        shop: narrative.shop,
+
+        // 關鍵修正：技能與勢力資料合併
+        skills: (narrative.skills && narrative.skills.length > 0) ? narrative.skills : prev.skills,
+        factions: narrative.factions || prev.factions,
+        myFaction: narrative.myFaction || prev.myFaction,
+        reputation: narrative.reputation || prev.reputation
       }));
 
     } catch (error: any) {
@@ -217,19 +236,20 @@ const App: React.FC = () => {
   const handleSkillUpgrade = (skillName: string) => {
     if (!engineRef.current) return;
     const state = engineRef.current.getState();
-    const skill = state.skills.find(s => s.name === skillName);
+    // 注意：Engine 中其實沒有 skills 的詳細資料，只有空殼。
+    // 但我們可以在前端做簡單的扣點邏輯，然後讓 AI 更新 skill level
     
-    // 直接在前端處理技能升級邏輯 (簡單版)
-    if (skill && state.freeSkillPoints > 0 && skill.level < skill.maxLevel) {
+    // 這裡我們只處理「扣除技能點」的硬邏輯
+    if (state.freeSkillPoints > 0) {
         state.freeSkillPoints -= 1;
-        skill.level += 1;
-        skill.progress = 0;
+        // Engine 不負責維護 skill level，這由 AI 維護。
+        // 我們手動通知 AI 這個動作
         
-        // 立即更新 UI
-        setGameState(prev => ({ ...prev, ...state }));
+        // 立即更新 UI 的剩餘點數
+        setGameState(prev => ({ ...prev, freeSkillPoints: state.freeSkillPoints }));
         
-        // 通知 AI 進行敘事
-        handleAction(`[SYSTEM] 技能升級確認：${skillName} 提升至等級 ${skill.level}。剩餘技能點：${state.freeSkillPoints}。`, true);
+        // 通知 AI
+        handleAction(`[SYSTEM] 玩家消耗 1 點技能點，升級技能 "${skillName}"。請更新該技能等級與描述。`, true);
     }
   };
 

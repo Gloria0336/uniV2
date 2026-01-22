@@ -10,12 +10,15 @@ import {
   ChronicleEvent,
   GameOption,
   ShopData,
-  ShopItem
+  ShopItem,
+  Skill,
+  MyFaction,
+  PsionicStatus
 } from '../types';
 import { GameEngine } from './GameEngine';
 import { ITEMS } from '../data/rules';
 
-// 新的敘事專用 Schema (不包含 status)
+// 新的敘事專用 Schema (混合模式：包含敘事性狀態)
 const narrativeSchema = {
   type: Type.OBJECT,
   properties: {
@@ -32,10 +35,65 @@ const narrativeSchema = {
         } 
       } 
     },
-    // 保留世界觀內容生成，因為這屬於敘事範疇
+    // AI 負責生成的軟數值/敘事資料
+    reputation: { type: Type.STRING, description: "Text description of player's reputation" },
+    factions: {
+      type: Type.OBJECT,
+      description: "Numeric standing with factions (-100 to 100)",
+      properties: {
+        earth: { type: Type.INTEGER },
+        mars: { type: Type.INTEGER },
+        belt: { type: Type.INTEGER },
+        jupiter: { type: Type.INTEGER },
+        saturn: { type: Type.INTEGER }
+      }
+    },
+    skills: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          id: { type: Type.STRING },
+          name: { type: Type.STRING },
+          level: { type: Type.INTEGER },
+          maxLevel: { type: Type.INTEGER },
+          description: { type: Type.STRING },
+          type: { type: Type.STRING },
+          progress: { type: Type.INTEGER }
+        }
+      }
+    },
+    myFaction: {
+      type: Type.OBJECT,
+      nullable: true,
+      properties: {
+        name: { type: Type.STRING },
+        level: { type: Type.INTEGER },
+        members: { type: Type.INTEGER },
+        influence: { type: Type.INTEGER },
+        resources: { type: Type.INTEGER },
+        description: { type: Type.STRING },
+        perks: { type: Type.ARRAY, items: { type: Type.STRING } },
+        followers: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              name: { type: Type.STRING },
+              role: { type: Type.STRING },
+              level: { type: Type.INTEGER },
+              status: { type: Type.STRING },
+              description: { type: Type.STRING }
+            }
+          }
+        }
+      }
+    },
+    // 世界觀內容
     news: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { faction: { type: Type.STRING }, status: { type: Type.STRING }, headline: { type: Type.STRING } } } },
     gossip: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { source: { type: Type.STRING }, content: { type: Type.STRING }, reliability: { type: Type.STRING } } } },
     chronicles: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { year: { type: Type.STRING }, title: { type: Type.STRING }, description: { type: Type.STRING } } } },
+    // 商店
     shop: {
       type: Type.OBJECT,
       nullable: true,
@@ -61,11 +119,17 @@ const narrativeSchema = {
   required: ["description", "image_prompt", "options"]
 };
 
-// 定義回傳介面 (對應 Schema)
+// 定義回傳介面
 export interface NarrativeResponse {
   description: string;
   image_prompt: string;
   options: GameOption[];
+  // Soft Data (AI Managed)
+  reputation?: string;
+  factions?: { earth: number; mars: number; belt: number; jupiter: number; saturn: number };
+  skills?: Skill[];
+  myFaction?: MyFaction;
+  // World Data
   news: FactionNews[];
   gossip: GossipItem[];
   chronicles: ChronicleEvent[];
@@ -82,19 +146,23 @@ const LORE_DATA = `
 
 【你的角色】
 你不是遊戲引擎，你是「敘事者」。
-你 **不可** 計算數值、**不可** 判定成功失敗。
-你的任務是接收 [系統運算日誌] (FACTS)，將其改寫為沈浸式的 Cyberpunk 風格劇情。
+你 **不可** 計算數值 (HP, Money, Date, Location 由引擎負責)。
+你 **必須** 負責生成與維護「敘事性資料」：技能名稱與描述、勢力關係變化、玩家組織詳情、聲望描述。
+
+【資料生成規則】
+1. **技能 (Skills)**: 初始遊戲時，根據玩家職業生成 3-4 個特色技能 (如 "Neural Hacking", "Diplomacy", "Plasma Pistol")。之後僅在劇情需要時更新。
+2. **勢力 (Factions)**: 若玩家行為取悅或冒犯某勢力，調整對應數值 (-100 ~ 100)。
+3. **玩家組織 (MyFaction)**: 若玩家招募追隨者或建立組織，生成詳細的 NPC 資料與組織特權。
+4. **聲望 (Reputation)**: 用一句帥氣的話描述玩家當前的名聲 (如 "Shadow of Mars", "EUG Wanted Level 5")。
 
 【輸入格式】
-你將收到：
-1. [PLAYER STATE]: 玩家當前數值 (供敘事參考，如 "你感到疲憊" 若 HP 低)。
-2. [SYSTEM LOG]: 剛剛發生的事件結果 (如 "移動到火星，扣除 200CR")。這是絕對事實，不可違背。
+1. [PLAYER STATE]: 玩家當前硬數值。
+2. [SYSTEM LOG]: 剛剛發生的事件結果 (絕對事實)。
 
 【輸出規則】
 - 若 LOG 顯示失敗：描述失敗的過程與後果。
 - 若 LOG 顯示成功：描述成功的細節。
 - 若 LOG 顯示戰鬥/受傷：描述傷口與痛楚。
-- Shop: 僅在玩家進入商店區域或遇見商人時生成 shop 物件。
 `;
 
 export class GameService {
@@ -102,8 +170,7 @@ export class GameService {
   private currentConfig?: GameConfig;
   private history: { role: string; content: string }[] = [];
   private readonly TIMEOUT_MS: number = 60000;
-  private gameEngine?: GameEngine;
-
+  
   constructor() {}
 
   private async withTimeout<T>(promise: Promise<T>): Promise<T> {
@@ -126,14 +193,10 @@ export class GameService {
       return "Gemini 3 Pro Online";
     } else {
       if (!config.openRouterKey) throw new Error("OpenRouter Key Missing");
-      // OpenRouter Test Implementation
       return `OpenRouter Online (Mock)`;
     }
   }
 
-  /**
-   * 初始化 AI 會話 (僅設定 Persona，不進行運算)
-   */
   async startSession(playerName: string, faction: FactionDetails, profile: PlayerProfile, config: GameConfig): Promise<void> {
     this.currentConfig = config;
     const sysInstruction = `
@@ -162,97 +225,6 @@ ${LORE_DATA}
     }
   }
 
-  /**
-   * 啟動遊戲
-   */
-  async startGame(name: string, faction: FactionDetails, profile: PlayerProfile, avatarUrl: string, config: GameConfig) {
-    const initialState: GameState = {
-        playerName: name,
-        playerProfile: profile,
-        avatarUrl: avatarUrl,
-        date: '3150-01-01',
-        location: faction.id === 'EUG' ? 'Earth' : faction.id === 'RED_CULT' ? 'Saturn' : 'Mars',
-        credits: 1000,
-        health: 100,
-        level: 1,
-        experience: 0,
-        nextLevelXp: 100,
-        actionPoints: 5,
-        freeSkillPoints: 0,
-        identity: `${faction.name} Operative`,
-        factionId: faction.id,
-        history: [],
-        isGameOver: false,
-        gameStarted: true,
-        inventory: [],
-        factions: { earth: 0, mars: 0, belt: 0, jupiter: 0, saturn: 0 },
-        reputation: 'Neutral',
-        currentOptions: [],
-        skills: [],
-        psionics: { level: 0, energy: 0, max_energy: 0, abilities: [] },
-        // shop is optional in GameState
-    };
-
-    this.gameEngine = new GameEngine(initialState);
-    await this.startSession(name, faction, profile, config);
-
-    // Initial narrative generation
-    const introLog = `[SYSTEM] New Neural Link Established. Subject: ${name}. Faction: ${faction.name}. Location: ${initialState.location}.`;
-    const narrative = await this.generateStory(introLog, this.gameEngine.getState());
-    
-    return this.mergeState(narrative);
-  }
-
-  /**
-   * 處理玩家行動
-   */
-  async sendAction(action: string) {
-      if (!this.gameEngine) throw new Error("Game Engine not initialized");
-      
-      let systemLog = "";
-      const lower = action.toLowerCase();
-
-      // Parsing Logic for GameEngine commands
-      // Travel
-      if (lower.match(/^(travel|move|前往|移動)\s+/)) {
-          const dest = action.split(/\s+/).slice(1).join(' ');
-          systemLog = this.gameEngine.processAction('TRAVEL', dest);
-      } 
-      // Rest
-      else if (lower.match(/^(rest|休息)/)) {
-           systemLog = this.gameEngine.processAction('REST', 1);
-      } 
-      // Transaction (Handle input from App.tsx handleBuyItem)
-      else if (action.includes("[TRANSACTION]")) {
-           // Format: [TRANSACTION] 購買物品: ITEM_NAME (價格: PRICE)
-           const match = action.match(/購買物品:\s*(.*?)\s*\(/);
-           if (match && match[1]) {
-               const itemName = match[1].trim();
-               // Find item ID by name from ITEMS data
-               const entry = Object.entries(ITEMS).find(([_, item]) => item.name === itemName);
-               if (entry) {
-                   systemLog = this.gameEngine.processAction('TRADE', { itemId: entry[0], action: 'BUY' });
-               } else {
-                   systemLog = `[SYSTEM] Transaction Error: Item '${itemName}' not recognized via neural link.`;
-               }
-           } else if (action.includes("離開商店")) {
-               systemLog = `[SYSTEM] Player exited the shop interface.`;
-           }
-      }
-
-      if (!systemLog) {
-          systemLog = `[USER ACTION] ${action}`;
-      }
-
-      const narrative = await this.generateStory(systemLog, this.gameEngine.getState());
-      return this.mergeState(narrative);
-  }
-
-  /**
-   * 生成劇情
-   * @param systemLog 由 GameEngine 產生的事實日誌
-   * @param currentState 當前遊戲狀態 (供 AI 參考)
-   */
   async generateStory(systemLog: string, currentState: GameState): Promise<NarrativeResponse> {
     const contextPrompt = `
 [PLAYER STATE]
@@ -266,7 +238,9 @@ Inventory: ${currentState.inventory.join(', ')}
 [SYSTEM LOG]
 ${systemLog}
 
-請根據以上 [SYSTEM LOG] 的結果，生成這一段的劇情描述、圖像提示與下一步選項。
+請根據 [SYSTEM LOG] 生成劇情。
+重要：若這是遊戲開始，請務必生成初始的 'skills' (3-4個)、'factions' 數值與 'myFaction' (若適用) 初始狀態。
+若有重要 NPC 互動，請更新 'myFaction' 中的 followers。
 `;
 
     if (this.currentConfig?.provider === 'GEMINI') {
@@ -315,16 +289,15 @@ ${systemLog}
       raw = JSON.parse(cleaned);
     } catch (e) {
       console.error("JSON Error:", e);
-      // Fallback response if JSON fails
       return {
         description: "通訊受到干擾... (JSON Parsing Failed)",
         image_prompt: "static noise, glitch art",
         options: [{ id: 1, text: "重試訊號", action_type: "retry" }],
-        news: [], gossip: [], chronicles: [], shop: null
+        news: [], gossip: [], chronicles: [], shop: null,
+        skills: [], factions: undefined, reputation: "Unknown"
       };
     }
 
-    // 防禦性處理
     return {
       description: String(raw.description || "資料傳輸中..."),
       image_prompt: String(raw.image_prompt || ""),
@@ -333,6 +306,12 @@ ${systemLog}
         text: String(o?.text || "Continue"),
         action_type: String(o?.action_type || "Neutral")
       })) : [],
+      // Soft Data Handling
+      reputation: raw.reputation,
+      factions: raw.factions,
+      skills: Array.isArray(raw.skills) ? raw.skills : undefined,
+      myFaction: raw.myFaction,
+      // World Data
       news: Array.isArray(raw.news) ? raw.news : [],
       gossip: Array.isArray(raw.gossip) ? raw.gossip : [],
       chronicles: Array.isArray(raw.chronicles) ? raw.chronicles : [],
@@ -342,30 +321,5 @@ ${systemLog}
         items: Array.isArray(raw.shop.items) ? raw.shop.items : []
       } : null
     };
-  }
-
-  private mergeState(narrative: NarrativeResponse) {
-      const state = this.gameEngine!.getState();
-      return {
-          ...narrative,
-          status: {
-              money: state.credits,
-              health: state.health,
-              level: state.level,
-              experience: state.experience,
-              actionPoints: state.actionPoints,
-              freeSkillPoints: state.freeSkillPoints,
-              date: state.date,
-              identity: state.identity,
-              inventory: state.inventory,
-              factions: state.factions,
-              reputation: state.reputation,
-              psionics: state.psionics,
-              skills: state.skills,
-              myFaction: state.myFaction
-          },
-          current_location: state.location,
-          isGameOver: state.isGameOver
-      };
   }
 }
