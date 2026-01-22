@@ -4,9 +4,10 @@ import { GameState, FACTIONS } from '../types';
 
 interface HUDProps {
   state: GameState;
+  onOpenInventory: () => void;
 }
 
-export const HUD: React.FC<HUDProps> = ({ state }) => {
+export const HUD: React.FC<HUDProps> = ({ state, onOpenInventory }) => {
   const psionics = state?.psionics;
   const isAwakened = (psionics?.level || 0) > 0;
   const psiEnergy = Number(psionics?.energy || 0);
@@ -46,7 +47,7 @@ export const HUD: React.FC<HUDProps> = ({ state }) => {
              )}
              
              <div className="absolute bottom-0 right-0 bg-neon-blue text-black text-[10px] font-bold px-1.5 rounded-tl">
-                等級 {level}
+                LV.{level}
              </div>
         </div>
 
@@ -82,13 +83,11 @@ export const HUD: React.FC<HUDProps> = ({ state }) => {
 
             {/* Middle Row: Stats Bars */}
             <div className="flex gap-3 items-center w-full mt-0.5">
-                {/* Health */}
                 <div className="flex-1 max-w-[140px] relative h-2.5 bg-gray-800 rounded-sm overflow-hidden group border border-gray-700">
                     <div className={`h-full transition-all duration-500 ${health > 50 ? 'bg-neon-green' : 'bg-neon-red'}`} style={{ width: `${Math.min(100, health)}%` }}></div>
                     <span className="absolute inset-0 flex items-center justify-center text-[8px] text-white mix-blend-difference font-bold opacity-80">生命值 {health}%</span>
                 </div>
 
-                {/* AP */}
                 <div className="hidden md:flex gap-0.5 items-center px-2 border-l border-r border-gray-700">
                     <span className="text-[8px] text-gray-500 mr-1 font-bold">AP</span>
                     {[...Array(maxAP)].map((_, i) => (
@@ -96,7 +95,6 @@ export const HUD: React.FC<HUDProps> = ({ state }) => {
                     ))}
                 </div>
 
-                {/* XP */}
                 <div className="flex-1 max-w-[140px] relative h-2.5 bg-gray-800 rounded-sm overflow-hidden group border border-gray-700">
                     <div className="h-full bg-cyan-400 transition-all duration-500" style={{ width: `${Math.min(100, experience)}%` }}></div>
                     <span className="absolute inset-0 flex items-center justify-center text-[8px] text-black font-bold opacity-60">經驗值 {experience}/100</span>
@@ -117,29 +115,32 @@ export const HUD: React.FC<HUDProps> = ({ state }) => {
                 </div>
             </div>
 
-            {/* Bottom Row: Inventory / Backpack Slots */}
-            <div className="flex gap-1 mt-2 overflow-x-auto pb-1 items-center custom-scrollbar no-scrollbar">
-                <span className="text-[9px] text-gray-500 font-mono uppercase mr-1 tracking-widest shrink-0 border-r border-gray-800 pr-2">INV_MODULE</span>
+            {/* Bottom Row: Inventory & Shortcut */}
+            <div className="flex gap-2 mt-2 overflow-x-auto pb-1 items-center no-scrollbar">
+                <button 
+                    onClick={onOpenInventory}
+                    className="flex items-center gap-1.5 px-2 py-0.5 bg-neon-blue/20 border border-neon-blue/50 text-[9px] text-neon-blue font-bold uppercase tracking-widest hover:bg-neon-blue hover:text-black transition-all rounded shadow-[0_0_10px_rgba(0,243,255,0.2)] shrink-0"
+                >
+                    <span>📂</span>
+                    <span>存儲模組</span>
+                </button>
                 
+                <span className="text-[8px] text-gray-700 font-mono uppercase shrink-0">|</span>
+
                 {(!state.inventory || state.inventory.length === 0) ? (
                     <div className="text-[9px] text-gray-700 italic font-mono px-2">EMPTY</div>
                 ) : (
-                    state.inventory.map((item, i) => (
+                    state.inventory.slice(0, 4).map((item, i) => (
                         <div key={i} className="group relative shrink-0">
-                            <div className="px-2 py-1 bg-black/40 border border-gray-700 text-[9px] text-gray-300 font-mono hover:border-neon-blue hover:text-neon-blue hover:bg-neon-blue/10 transition-all cursor-help rounded-sm">
+                            <div className="px-2 py-1 bg-black/40 border border-gray-700 text-[9px] text-gray-400 font-mono group-hover:border-neon-blue group-hover:text-neon-blue transition-all cursor-default rounded-sm">
                                 {item}
-                            </div>
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:block bg-black border border-gray-600 text-[8px] text-white px-2 py-1 whitespace-nowrap z-50 rounded shadow-xl">
-                                ITEM_ID: {i}
                             </div>
                         </div>
                     ))
                 )}
-                
-                {/* Empty slot placeholders */}
-                {[...Array(Math.max(0, 5 - (state.inventory?.length || 0)))].map((_, i) => (
-                    <div key={`empty-${i}`} className="w-8 h-5 border border-gray-800/50 bg-black/20 rounded-sm shrink-0 border-dashed"></div>
-                ))}
+                {state.inventory.length > 4 && (
+                    <span className="text-[9px] text-gray-600 font-mono">+{state.inventory.length - 4}</span>
+                )}
             </div>
         </div>
       </div>

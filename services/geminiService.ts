@@ -18,10 +18,18 @@ import {
   ActionCategory
 } from '../types';
 
-// 新的敘事專用 Schema
+// 更新後的敘事專用 Schema，新增身份與初始地點
 const narrativeSchema = {
   type: Type.OBJECT,
   properties: {
+    generated_identity: { 
+      type: Type.STRING, 
+      description: "AI 為玩家決定的一個帥氣職業名稱（例如：企業特工、非法駭客、紅教苦修士等）。"
+    },
+    starting_location: {
+      type: Type.STRING,
+      description: "根據玩家職業決定的合適出發星球或地點名稱（必須存在於遊戲星圖中，如 Earth, Mars, Saturn, Jupiter, Belt, Luna）。"
+    },
     description: { type: Type.STRING },
     image_prompt: { type: Type.STRING },
     options: { 
@@ -36,8 +44,7 @@ const narrativeSchema = {
             description: "Must be one of: TALK, MOVE_SHORT, MOVE_LONG, COMBAT, ACTION, REST"
           },
           ap_cost: {
-            type: Type.INTEGER,
-            description: "The amount of Action Points consumed by this choice."
+            type: Type.INTEGER
           }
         },
         required: ["id", "text", "action_type", "ap_cost"]
@@ -146,11 +153,12 @@ const narrativeSchema = {
       }
     }
   },
-  required: ["description", "image_prompt", "options"]
+  required: ["description", "image_prompt", "options", "generated_identity", "starting_location"]
 };
 
-// 定義回傳介面
 export interface NarrativeResponse {
+  generated_identity: string;
+  starting_location: string;
   description: string;
   image_prompt: string;
   options: GameOption[];
@@ -169,32 +177,26 @@ const LORE_DATA = `
 年份：3150年。
 三大勢力：EUG (地球木星/秩序)、紅教 (土星/靈能)、自由民 (火星帶/法外)。
 
-【你的角色】
-你不是遊戲引擎，你是「敘事者」。
-你必須根據 [SYSTEM LOG] 生成劇情，並為玩家提供下一步的選項 (options)。
+【你的角色：TRPG 地下城主】
+你是一個硬派賽博龐克冒險的 GM。當玩家第一次提供個人背景後，你必須：
+1. **塑造身分**: 賦予玩家一個具體的「職業/身分」(generated_identity)。
+2. **決定起點**: 根據身分，將其安置在合理的「起始地點」(starting_location)。
+3. **分發天賦**: 在第一次回應的 \`game_events.initial_skills\` 中，提供 3 個與該職業高度相關的初始技能。
+
+【開場指南】
+不要只是說「歡迎來到 3150 年」。請描述一個具體的、感官強烈的場景，讓玩家直接以該職業身分融入。
 **請務必使用「繁體中文」進行所有文字生成。**
 
-【連貫性協議 (Continuity Protocol)】
-1. **互動鎖定**: 若 System Log 中標註了 \`[CONSTRAINT] 鎖定對象\`，你的敘事範圍必須僅侷限於該對象。
-2. **禁止漂移**: 禁止在鎖定狀態下讓新角色突然插話、禁止切換場景、禁止忽視當前對象的對話內容。
-3. **選項引導**: 當玩家鎖定對象時，生成的 \`options\` 應以該對象的深度互動為主（如：追問細節、反駁論點、進行交易等），除非玩家指令明確表示要「離開」。
-
-【行動與 AP 定價規則】
-每個選項 (GameOption) 必須包含 'action_type' 與 'ap_cost'。請遵循以下定價邏輯：
-1. **免費行動 (ap_cost: 0)**: TALK (詢問、閒聊)、MOVE_SHORT (同區域移動)。
-2. **消耗性行動 (ap_cost: 1~2)**: MOVE_LONG (跨星球)、COMBAT (戰鬥)、ACTION (高難度技術工作)。
-3. **恢復行動 (ap_cost: 0)**: REST (休息)。
-
-【資料生成規則】
-1. **語言**: 文字必須為 **繁體中文**。
-2. **選項 (Options)**: 必須回傳 id, text, action_type, ap_cost。數量 3-5 個。
+【連貫性協議】
+1. **選項引導**: 每個選項 (GameOption) 必須包含 'action_type' 與 'ap_cost'。
+2. **語系限制**: 嚴禁使用英文回傳描述，除非是專業術語。
 `;
 
 export class GameService {
   private currentConfig?: GameConfig;
   private systemInstruction: string = "";
   private history: { role: string; content: string }[] = [];
-  private readonly TIMEOUT_MS: number = 30000; 
+  private readonly TIMEOUT_MS: number = 45000; // 初始載入可能較久
   private readonly MAX_HISTORY_LENGTH: number = 10;
   
   constructor() {}
@@ -208,8 +210,7 @@ export class GameService {
         return await Promise.race([promise, timeout]);
       } catch (error) {
         if (remaining > 0) {
-          console.warn(`連線不穩定，正在重試... (剩餘 ${remaining} 次)`);
-          await new Promise(r => setTimeout(r, 1000)); 
+          await new Promise(r => setTimeout(r, 1500)); 
           return attempt(remaining - 1);
         }
         throw error;
@@ -219,22 +220,15 @@ export class GameService {
   }
 
   async testConnection(config: GameConfig): Promise<string> {
-    if (config.provider === 'GEMINI') {
-      const apiKey = process.env.API_KEY;
-      if (!apiKey) throw new Error("API_KEY_MISSING");
-      const ai = new GoogleGenAI({ apiKey });
-      const t0 = performance.now();
-      await ai.models.generateContent({ 
-        model: 'gemini-3-flash-preview', 
-        contents: 'Ping',
-        config: { maxOutputTokens: 5 }
-      });
-      const latency = Math.round(performance.now() - t0);
-      return `Gemini 3 Flash 在線 (${latency}ms)`;
-    } else {
-      if (!config.openRouterKey) throw new Error("OpenRouter 金鑰缺失");
-      return `OpenRouter 在線 (Mock)`;
-    }
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) throw new Error("API_KEY_MISSING");
+    const ai = new GoogleGenAI({ apiKey });
+    const response = await ai.models.generateContent({ 
+      model: 'gemini-3-flash-preview', 
+      contents: 'Ping',
+      config: { maxOutputTokens: 5 }
+    });
+    return `Gemini 3 Flash 在線`;
   }
 
   async startSession(playerName: string, faction: FactionDetails, profile: PlayerProfile, config: GameConfig): Promise<void> {
@@ -243,135 +237,81 @@ export class GameService {
 ${LORE_DATA}
 玩家資料：
 名稱: ${playerName}
-勢力: ${faction.name}
-性格: ${profile.personality}
-外貌: ${profile.appearance}
-回傳格式必須為符合 Schema 的 JSON。請務必使用繁體中文。
+所屬大勢力: ${faction.name}
+性格特質: ${profile.personality}
+外貌描述: ${profile.appearance}
 `;
     this.history = [];
   }
 
-  private getContextWindow(newPrompt: string): { role: string; content: string }[] {
-    const recentHistory = this.history.slice(-this.MAX_HISTORY_LENGTH);
-    return [...recentHistory, { role: 'user', content: newPrompt }];
-  }
-
   async generateStory(systemLog: string, currentState: GameState, specialRequests: string = ""): Promise<NarrativeResponse> {
     const contextPrompt = `
-[PLAYER STATE]
-當前位置: ${currentState.location}
-日期: ${currentState.date}
-生命值: ${currentState.health}
-信用點: ${currentState.credits}
-行動點 (AP): ${currentState.actionPoints}
-庫存: ${currentState.inventory.join(', ')}
+[STATE]
+LOC: ${currentState.location}
+HP: ${healthText(currentState.health)}
+CREDITS: ${currentState.credits}
+INV: ${currentState.inventory.join(', ')}
 
-[SYSTEM LOG]
+[ACTION]
 ${systemLog}
 
-[SYSTEM REQUEST]
-${specialRequests || "無。請保持敘事集中。"}
-
-請根據 [SYSTEM LOG] 以繁體中文生成劇情。
+[REQ]
+${specialRequests}
 `;
 
-    const contextMessages = this.getContextWindow(contextPrompt);
-    let responseText = "";
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+    const geminiContents = this.history.map(msg => ({
+      role: msg.role === 'user' ? 'user' : 'model',
+      parts: [{ text: msg.content }]
+    }));
+    geminiContents.push({ role: 'user', parts: [{ text: contextPrompt }] });
 
-    if (this.currentConfig?.provider === 'GEMINI') {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-      const geminiContents = contextMessages.map(msg => ({
-        role: msg.role === 'user' ? 'user' : 'model',
-        parts: [{ text: msg.content }]
-      }));
+    const response = await this.withTimeout(ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      config: {
+        systemInstruction: this.systemInstruction,
+        responseMimeType: "application/json",
+        responseSchema: narrativeSchema,
+      },
+      contents: geminiContents
+    })) as GenerateContentResponse;
 
-      const response = await this.withTimeout(ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        config: {
-          systemInstruction: this.systemInstruction,
-          responseMimeType: "application/json",
-          responseSchema: narrativeSchema,
-        },
-        contents: geminiContents
-      })) as GenerateContentResponse;
-
-      responseText = response.text || "{}";
-    } else {
-      const openRouterMessages = [
-        { role: 'system', content: this.systemInstruction + "\n回傳格式必須為符合 Schema 的 JSON，且使用繁體中文。" },
-        ...contextMessages
-      ];
-      responseText = await this.callOpenRouter(openRouterMessages);
-    }
-
-    this.history.push({ role: 'user', content: contextPrompt });
+    const responseText = response.text || "{}";
     const parsed = this.parseResponse(responseText);
+    
+    this.history.push({ role: 'user', content: contextPrompt });
     this.history.push({ role: 'model', content: parsed.description });
 
     return parsed;
   }
 
-  private async callOpenRouter(messages: any[]): Promise<string> {
-    const config = this.currentConfig!;
-    try {
-      const response = await this.withTimeout(fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${config.openRouterKey}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          model: config.openRouterModel,
-          messages: messages,
-          response_format: { type: "json_object" },
-          max_tokens: 3000
-        })
-      }));
-
-      if (!response.ok) throw new Error("OpenRouter 連線錯誤");
-      const data = await response.json();
-      return data.choices?.[0]?.message?.content || "{}";
-    } catch (e: any) {
-      throw new Error(`OpenRouter 故障: ${e.message}`);
-    }
-  }
-
-  private parseResponse(text: string | undefined): NarrativeResponse {
-    if (!text) throw new Error("神經傳輸為空");
-    let raw: any = {};
+  private parseResponse(text: string): NarrativeResponse {
     try {
       const cleaned = text.replace(/```json\n?|\n?```/g, "").trim();
-      raw = JSON.parse(cleaned);
-    } catch (e) {
+      const raw = JSON.parse(cleaned);
       return {
-        description: "通訊受到干擾...",
-        image_prompt: "noise",
-        options: [{ id: 1, text: "重試訊號", action_type: "TALK", ap_cost: 0 }],
-        news: [], gossip: [], chronicles: [], shop: null
+        generated_identity: raw.generated_identity || "獨立操作員",
+        starting_location: raw.starting_location || "Earth",
+        description: raw.description || "傳輸失敗...",
+        image_prompt: raw.image_prompt || "cyberpunk space station",
+        options: Array.isArray(raw.options) ? raw.options : [],
+        game_events: raw.game_events,
+        reputation: raw.reputation,
+        factions: raw.factions,
+        myFaction: raw.myFaction,
+        news: raw.news || [],
+        gossip: raw.gossip || [],
+        chronicles: raw.chronicles || [],
+        shop: raw.shop || null
       };
+    } catch (e) {
+      throw new Error("神經訊號解析失敗。");
     }
-
-    return {
-      description: String(raw.description || "資料傳輸中..."),
-      image_prompt: String(raw.image_prompt || ""),
-      options: Array.isArray(raw.options) ? raw.options.map((o: any) => ({
-        id: Number(o?.id ?? 0),
-        text: String(o?.text || "繼續"),
-        action_type: (o?.action_type || "TALK") as ActionCategory,
-        ap_cost: Number(o?.ap_cost ?? 0)
-      })) : [],
-      game_events: raw.game_events,
-      reputation: raw.reputation,
-      factions: raw.factions,
-      myFaction: raw.myFaction,
-      news: Array.isArray(raw.news) ? raw.news : [],
-      gossip: Array.isArray(raw.gossip) ? raw.gossip : [],
-      chronicles: Array.isArray(raw.chronicles) ? raw.chronicles : [],
-      shop: raw.shop ? {
-        shopName: String(raw.shop.shopName || "未知商店"),
-        shopDescription: String(raw.shop.shopDescription || ""),
-        items: Array.isArray(raw.shop.items) ? raw.shop.items : []
-      } : null
-    };
   }
+}
+
+function healthText(hp: number) {
+    if (hp > 80) return "良好";
+    if (hp > 40) return "受損";
+    return "危急";
 }

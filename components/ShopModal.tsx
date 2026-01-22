@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { ShopData, ShopItem } from '../types';
 
 interface ShopModalProps {
@@ -10,6 +10,14 @@ interface ShopModalProps {
 }
 
 export const ShopModal: React.FC<ShopModalProps> = ({ shop, credits, onBuy, onClose }) => {
+  const [lastBought, setLastBought] = useState<string | null>(null);
+
+  const handleLocalBuy = (item: ShopItem) => {
+    onBuy(item);
+    setLastBought(item.name);
+    setTimeout(() => setLastBought(null), 1500);
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
       <div className="w-full max-w-2xl bg-black border border-neon-blue shadow-[0_0_50px_rgba(0,243,255,0.2)] flex flex-col max-h-[90vh]">
@@ -24,6 +32,15 @@ export const ShopModal: React.FC<ShopModalProps> = ({ shop, credits, onBuy, onCl
                 <div className="text-[10px] text-gray-500 uppercase">持有信用點 (Credits)</div>
                 <div className="text-xl font-bold text-yellow-400">{credits.toLocaleString()} CR</div>
             </div>
+        </div>
+
+        {/* Feedback Bar */}
+        <div className={`h-8 flex items-center justify-center transition-all ${lastBought ? 'bg-neon-green/20' : 'bg-transparent'}`}>
+            {lastBought && (
+                <span className="text-[10px] text-neon-green font-bold animate-pulse">
+                   ✔ 成功購買: {lastBought} // 物品已存入背包
+                </span>
+            )}
         </div>
 
         {/* Items Grid */}
@@ -43,7 +60,7 @@ export const ShopModal: React.FC<ShopModalProps> = ({ shop, credits, onBuy, onCl
                             <div className="flex justify-between items-center mt-2">
                                 <span className="text-[9px] text-gray-600 uppercase border border-gray-800 px-1 rounded">{item.type}</span>
                                 <button 
-                                    onClick={() => canAfford && onBuy(item)}
+                                    onClick={() => canAfford && handleLocalBuy(item)}
                                     disabled={!canAfford}
                                     className={`text-xs px-4 py-2 border uppercase tracking-widest font-bold transition-all ${
                                         canAfford 
