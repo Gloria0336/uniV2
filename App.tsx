@@ -49,7 +49,10 @@ const App: React.FC = () => {
     chronicles: [],
     psionics: { level: 0, energy: 0, max_energy: 0, abilities: [] },
     skills: [],
-    shop: null
+    shop: null,
+    // News tracking initialization
+    lastNewsDate: '3150-01-01',
+    actionStepCount: 0
   });
 
   // 自動存檔機制 (已優化：存檔瘦身)
@@ -108,6 +111,8 @@ const App: React.FC = () => {
         currentOptions: [],
         skills: [],
         psionics: { level: 0, energy: 0, max_energy: 0, abilities: [] },
+        lastNewsDate: '3150-01-01',
+        actionStepCount: 0
       };
 
       // 2. 啟動本地引擎
@@ -121,7 +126,8 @@ const App: React.FC = () => {
 
       // 5. 生成開場劇情 (Prompt 會要求生成初始 Skills 與 Faction Data)
       const introLog = `[SYSTEM] Neural Link Established. Subject: ${name}. Faction: ${faction.name}. Location: ${initialState.location}. Initializing skills and faction database.`;
-      const narrative = await gameService.generateStory(introLog, initialState);
+      // 開場強制要求生成第一批新聞
+      const narrative = await gameService.generateStory(introLog, initialState, "Initialize world state: Generate initial Faction News, Gossip, and Player Skills.");
       
       // 6. 混合更新
       setGameState(prev => ({ 
@@ -196,8 +202,31 @@ const App: React.FC = () => {
            }
       }
 
-      // 3. Engine 狀態同步 (預先更新 Cost, Date)
+      // 3. Engine 狀態同步 & News/Gossip 觸發判定
       let currentEngineState = engineRef.current.getState();
+      
+      // 計算自上次行動後的狀態變化
+      const prevDate = new Date(gameState.lastNewsDate || gameState.date).getTime();
+      const currDate = new Date(currentEngineState.date).getTime();
+      const dayDiff = (currDate - prevDate) / (1000 * 3600 * 24);
+      
+      const prevStep = gameState.actionStepCount || 0;
+      const newStep = prevStep + 1;
+      
+      let specialRequest = "";
+      let newLastNewsDate = gameState.lastNewsDate;
+
+      // 判定邏輯: 每3天一次新聞
+      if (dayDiff >= 3) {
+        specialRequest += " [EVENT TRIGGER] It has been 3+ days. Please generate NEW Faction News updates.";
+        newLastNewsDate = currentEngineState.date;
+      }
+
+      // 判定邏輯: 每3次行動一次流言
+      if (newStep % 3 === 0) {
+        specialRequest += " [EVENT TRIGGER] 3 Actions passed. Please generate fresh Gossip/Rumors.";
+      }
+
       if (engineUpdated) {
           setGameState(prev => ({
               ...prev,
@@ -207,7 +236,7 @@ const App: React.FC = () => {
       }
 
       // 4. AI 敘事生成
-      const narrative = await gameService.generateStory(systemLog, currentEngineState);
+      const narrative = await gameService.generateStory(systemLog, currentEngineState, specialRequest);
       
       const modelMsg: ChatMessage = { 
         role: 'model', 
@@ -252,12 +281,19 @@ const App: React.FC = () => {
             location: currentEngineState.location,
             inventory: currentEngineState.inventory,
 
+            // 更新計數器
+            lastNewsDate: newLastNewsDate,
+            actionStepCount: newStep,
+
             // 使用 AI 的軟數值
             history: trimmedHistory,
             currentOptions: narrative.options || [],
             latestImagePrompt: narrative.image_prompt,
-            news: narrative.news || prev.news,
-            gossip: narrative.gossip || prev.gossip,
+            
+            // News/Gossip: 只有當 AI 有回傳內容時才更新，否則保留舊的 (避免被空陣列覆蓋)
+            news: (narrative.news && narrative.news.length > 0) ? narrative.news : prev.news,
+            gossip: (narrative.gossip && narrative.gossip.length > 0) ? narrative.gossip : prev.gossip,
+            
             chronicles: narrative.chronicles || prev.chronicles,
             shop: narrative.shop,
 

@@ -181,10 +181,12 @@ const LORE_DATA = `
 【資料生成規則】
 1. **技能 (Skills)**: 初始遊戲時，根據玩家職業生成 3-4 個特色技能。
 2. **聲望 (Reputation)**: 用一句帥氣的話描述玩家當前的名聲。
+3. **新聞與流言**: **只有在 [SYSTEM REQUEST] 明確要求時才生成**，否則請回傳空陣列 []。不要每一回合都生成新聞。
 
 【輸入格式】
 1. [PLAYER STATE]: 玩家當前硬數值。
 2. [SYSTEM LOG]: 剛剛發生的事件結果 (絕對事實)。
+3. [SYSTEM REQUEST]: 特別指示 (如要求新聞更新)。
 `;
 
 export class GameService {
@@ -192,17 +194,29 @@ export class GameService {
   private systemInstruction: string = "";
   // 保存對話歷史 (純粹的 User/Model 對話，不含 System)
   private history: { role: string; content: string }[] = [];
-  private readonly TIMEOUT_MS: number = 60000;
+  private readonly TIMEOUT_MS: number = 30000; // Flash model is faster, stricter timeout
   // 設定最大保留的對話回合數 (10 則訊息 = 5 回合)
   private readonly MAX_HISTORY_LENGTH: number = 10;
   
   constructor() {}
 
-  private async withTimeout<T>(promise: Promise<T>): Promise<T> {
-    const timeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Neural Link Timeout")), this.TIMEOUT_MS)
-    );
-    return Promise.race([promise, timeout]);
+  private async withTimeout<T>(promise: Promise<T>, retries = 1): Promise<T> {
+    const attempt = async (remaining: number): Promise<T> => {
+      try {
+        const timeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Connection Latency Too High")), this.TIMEOUT_MS)
+        );
+        return await Promise.race([promise, timeout]);
+      } catch (error) {
+        if (remaining > 0) {
+          console.warn(`Connection unstable, retrying... (${remaining} attempts left)`);
+          await new Promise(r => setTimeout(r, 1000)); // wait 1s before retry
+          return attempt(remaining - 1);
+        }
+        throw error;
+      }
+    };
+    return attempt(retries);
   }
 
   async testConnection(config: GameConfig): Promise<string> {
@@ -210,12 +224,14 @@ export class GameService {
       const apiKey = process.env.API_KEY;
       if (!apiKey) throw new Error("API_KEY_MISSING");
       const ai = new GoogleGenAI({ apiKey });
+      const t0 = performance.now();
       await ai.models.generateContent({ 
-        model: 'gemini-3-pro-preview', 
+        model: 'gemini-3-flash-preview', 
         contents: 'Ping',
-        config: { maxOutputTokens: 10 }
+        config: { maxOutputTokens: 5 }
       });
-      return "Gemini 3 Pro Online";
+      const latency = Math.round(performance.now() - t0);
+      return `Gemini 3 Flash Online (${latency}ms)`;
     } else {
       if (!config.openRouterKey) throw new Error("OpenRouter Key Missing");
       return `OpenRouter Online (Mock)`;
@@ -244,14 +260,11 @@ ${LORE_DATA}
   private getContextWindow(newPrompt: string): { role: string; content: string }[] {
     // 1. 取得最近的歷史紀錄 (Pruning)
     const recentHistory = this.history.slice(-this.MAX_HISTORY_LENGTH);
-    
-    // 2. 如果有被裁切掉的訊息，這裡可以選擇是否插入摘要 (目前先略過，保持簡潔)
-    
-    // 3. 加入最新的 User Prompt
+    // 2. 加入最新的 User Prompt
     return [...recentHistory, { role: 'user', content: newPrompt }];
   }
 
-  async generateStory(systemLog: string, currentState: GameState): Promise<NarrativeResponse> {
+  async generateStory(systemLog: string, currentState: GameState, specialRequests: string = ""): Promise<NarrativeResponse> {
     const contextPrompt = `
 [PLAYER STATE]
 Location: ${currentState.location}
@@ -263,6 +276,9 @@ Inventory: ${currentState.inventory.join(', ')}
 
 [SYSTEM LOG]
 ${systemLog}
+
+[SYSTEM REQUEST]
+${specialRequests || "None. Keep narrative focused."}
 
 請根據 [SYSTEM LOG] 生成劇情。
 若發生戰鬥、受傷或獲得獎勵，請務必填寫 game_events 欄位。
@@ -282,8 +298,9 @@ ${systemLog}
         parts: [{ text: msg.content }]
       }));
 
+      // 使用 Flash Preview 並加入重試機制
       const response = await this.withTimeout(ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
+        model: 'gemini-3-flash-preview',
         config: {
           systemInstruction: this.systemInstruction,
           responseMimeType: "application/json",

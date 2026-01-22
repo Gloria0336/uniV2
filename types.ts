@@ -1,5 +1,4 @@
 
-
 export interface PlayerProfile {
   gender: string;
   personality: string;
@@ -117,7 +116,10 @@ export interface GameState {
   chronicles?: ChronicleEvent[];
   psionics?: PsionicStatus;
   skills: Skill[];
-  shop?: ShopData | null; // 商店狀態
+  shop?: ShopData | null;
+  // News Control Logic
+  lastNewsDate?: string;    // 上次更新官方新聞的日期
+  actionStepCount?: number; // 行動次數計數器 (用於流言)
 }
 
 // 新增：AI 回傳的遊戲事件
@@ -190,7 +192,7 @@ export const FACTIONS: FactionDetails[] = [
   {
     id: FactionType.RED_CULT,
     name: "紅教 (Red Cult)",
-    description: "神秘的機械宗教，總部位於土星泰坦。追求肉體飛昇與靈能覺醒。適合偏好魔法、宗教與異端玩法的玩家。",
+    description: "神秘的機械宗教，總部位於土星泰坦。追求肉體飛昇與靈能崇拜。適合偏好魔法、宗教與異端玩法的玩家。",
     colorTheme: "border-red-500 bg-red-900/20 text-red-100"
   },
   {

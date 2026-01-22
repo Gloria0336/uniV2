@@ -99,7 +99,7 @@ export const Intro: React.FC<IntroProps> = ({ onStart, isLoading }) => {
                         <div className="grid grid-cols-2 gap-4">
                             <button onClick={() => setProvider('GEMINI')} className={`p-4 border-2 rounded text-left transition-all ${provider === 'GEMINI' ? 'border-neon-blue bg-neon-blue/10' : 'border-gray-800 bg-gray-900/40 opacity-50'}`}>
                                 <div className="font-bold">SYSTEM CORE</div>
-                                <div className="text-[10px] text-gray-400">Gemini 3 Pro Preview</div>
+                                <div className="text-[10px] text-gray-400">Gemini 3 Flash Preview</div>
                             </button>
                             <button onClick={() => setProvider('OPENROUTER')} className={`p-4 border-2 rounded text-left transition-all ${provider === 'OPENROUTER' ? 'border-neon-blue bg-neon-blue/10' : 'border-gray-800 bg-gray-900/40 opacity-50'}`}>
                                 <div className="font-bold">EXTENDED NODE</div>
@@ -109,7 +109,7 @@ export const Intro: React.FC<IntroProps> = ({ onStart, isLoading }) => {
 
                         {provider === 'GEMINI' ? (
                             <div className="bg-white/5 border border-neon-blue/20 p-6 rounded text-center space-y-4">
-                                <p className="text-xs text-gray-400">Gemini 3 Pro 需要您的付費 API 金鑰。系統將透過安全彈窗調用。</p>
+                                <p className="text-xs text-gray-400">Gemini 3 Flash 需要您的付費 API 金鑰。系統將透過安全彈窗調用。</p>
                                 <button onClick={handleSelectGeminiKey} className={`px-6 py-3 border rounded font-mono text-sm tracking-widest transition-all ${hasGeminiKey ? 'border-neon-green text-neon-green bg-neon-green/10' : 'border-neon-blue text-neon-blue hover:bg-neon-blue hover:text-black'}`}>
                                     {hasGeminiKey ? '[ AUTH_KEY_READY ]' : '[ SELECT API KEY ]'}
                                 </button>
