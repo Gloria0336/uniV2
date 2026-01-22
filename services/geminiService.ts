@@ -72,21 +72,7 @@ const narrativeSchema = {
         saturn: { type: Type.INTEGER }
       }
     },
-    skills: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          id: { type: Type.STRING },
-          name: { type: Type.STRING },
-          level: { type: Type.INTEGER },
-          maxLevel: { type: Type.INTEGER },
-          description: { type: Type.STRING },
-          type: { type: Type.STRING },
-          progress: { type: Type.INTEGER }
-        }
-      }
-    },
+    // 已移除 'skills' 陣列，技能狀態由 GameEngine 本地管理
     myFaction: {
       type: Type.OBJECT,
       nullable: true,
@@ -149,7 +135,7 @@ export interface NarrativeResponse {
   game_events?: GameEvents;
   reputation?: string;
   factions?: { earth: number; mars: number; belt: number; jupiter: number; saturn: number };
-  skills?: Skill[];
+  // skills?: Skill[]; // 已移除，改由本地管理
   myFaction?: MyFaction;
   news: FactionNews[];
   gossip: GossipItem[];
@@ -167,7 +153,7 @@ const LORE_DATA = `
 
 【你的角色】
 你不是遊戲引擎，你是「敘事者」。
-你 **不可** 計算日誌與金錢 (由 Engine 負責)。
+你 **不可** 計算日誌、金錢與 **技能列表** (由 Engine 負責)。
 你 **必須** 負責生成「敘事性資料」與「遊戲事件」。
 
 【遊戲事件 (Game Events)】
@@ -175,17 +161,20 @@ const LORE_DATA = `
 1. **經驗值 (xp_gain)**: 戰鬥勝利 (+20~50)、任務完成 (+100)、發現新地點 (+10)。
 2. **生命變化 (hp_change)**: 戰鬥受傷 (負數，如 -15)、醫療事件 (正數)。
 3. **物品獲得 (new_item)**: 探索發現或 NPC 贈送。
-4. **技能習得 (new_skill)**: 劇情觸發學習新能力。
+4. **技能習得 (new_skill)**: 只有當玩家在劇情中「領悟」或「學習」了全新的能力時，才填寫此欄位。**平時請勿回傳技能列表**。
 5. **勢力變更 (reputation_change)**: 使用 keys: earth, mars, belt, jupiter, saturn。
 
 【資料生成規則】
-1. **技能 (Skills)**: 初始遊戲時，根據玩家職業生成 3-4 個特色技能。
+1. **技能 (Skills)**: **禁止** 在回傳的 JSON 中包含完整的 skills 陣列。技能狀態已由客戶端託管。若要讓玩家學新技能，請使用 game_events.new_skill。
 2. **聲望 (Reputation)**: 用一句帥氣的話描述玩家當前的名聲。
-3. **新聞與流言**: **只有在 [SYSTEM REQUEST] 明確要求時才生成**，否則請回傳空陣列 []。不要每一回合都生成新聞。
+3. **新聞與流言 (News Limiter)**:
+   - **頻率控制**: 只有在 [SYSTEM REQUEST] 明確要求更新，或是 [SYSTEM LOG] 中出現 \`[PLOT EVENT]\` 或 \`[MAJOR EVENT]\` 時，**才允許**生成 \`news\` 與 \`gossip\`。
+   - **預設行為**: 平時請務必回傳空陣列 \`[]\`，**嚴禁**為了塞版面而隨機編造無關緊要的新聞。
+   - **關聯性**: 新聞內容必須與當前 [SYSTEM LOG] 中的 \`plotContext\` (劇情階段) **高度相關**。
 
 【輸入格式】
 1. [PLAYER STATE]: 玩家當前硬數值。
-2. [SYSTEM LOG]: 剛剛發生的事件結果 (絕對事實)。
+2. [SYSTEM LOG]: 剛剛發生的事件結果 (絕對事實，包含 Plot Events)。
 3. [SYSTEM REQUEST]: 特別指示 (如要求新聞更新)。
 `;
 
@@ -373,7 +362,7 @@ ${specialRequests || "None. Keep narrative focused."}
         image_prompt: "static noise, glitch art",
         options: [{ id: 1, text: "重試訊號", action_type: "retry" }],
         news: [], gossip: [], chronicles: [], shop: null,
-        skills: [], factions: undefined, reputation: "Unknown", game_events: undefined
+        factions: undefined, reputation: "Unknown", game_events: undefined
       };
     }
 
@@ -389,7 +378,7 @@ ${specialRequests || "None. Keep narrative focused."}
       // Soft Data Handling
       reputation: raw.reputation,
       factions: raw.factions,
-      skills: Array.isArray(raw.skills) ? raw.skills : undefined,
+      // skills: undefined, // 技能不再從 AI 讀取
       myFaction: raw.myFaction,
       // World Data
       news: Array.isArray(raw.news) ? raw.news : [],

@@ -9,6 +9,8 @@ export interface FactionNews {
   faction: string;
   status: string;
   headline: string;
+  turn?: number;        // 新增：發生回合
+  isMajorEvent?: boolean; // 新增：是否為大事件
 }
 
 export interface GossipItem {
@@ -120,6 +122,10 @@ export interface GameState {
   // News Control Logic
   lastNewsDate?: string;    // 上次更新官方新聞的日期
   actionStepCount?: number; // 行動次數計數器 (用於流言)
+  
+  // Plot Clock
+  turn: number;             // 當前遊戲回合數
+  worldStage: number;       // 世界劇情階段 (1:初期, 2:動盪, 3:戰爭...)
 }
 
 // 新增：AI 回傳的遊戲事件

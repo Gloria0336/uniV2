@@ -1,6 +1,23 @@
 
-import { GameState, GameEvents } from '../types';
+import { GameState, GameEvents, Skill } from '../types';
 import { CONSTANTS, LOCATIONS, ITEMS } from '../data/rules';
+
+// 定義硬編碼的大事表
+const TIMELINE: Record<number, string> = {
+  3: "【世界事件】火星奧林帕斯山礦區爆發大規模罷工，自由民聲援抗議者。",
+  6: "【世界事件】EUG 宣佈對小行星帶實施『第7號過濾法案』，限制未註冊船隻通行。",
+  10: "【重大變故】一艘滿載紅色晶體的運輸船在木星軌道離奇爆炸，紅教宣稱這是『飛昇的前兆』。",
+  15: "【戰爭陰影】地球艦隊向土星環集結，太陽系緊張局勢升級至二級戒備。",
+  20: "【異象】各地傳出靈能者失控事件，有人在夢中聽見了來自虛空的低語。",
+  30: "【全面衝突】EUG 正式對自由民宣戰，火星航道被全面封鎖。"
+};
+
+// 預設基礎技能表
+const INITIAL_SKILLS: Skill[] = [
+    { id: 'basic_hacking', name: '基礎駭入', level: 1, maxLevel: 5, description: '解鎖基礎電子鎖與獲取低階情報的能力。', type: 'TECH', progress: 0 },
+    { id: 'kinetic_weapons', name: '動能武器', level: 1, maxLevel: 5, description: '熟練使用傳統槍械進行戰鬥。', type: 'INNATE', progress: 0 },
+    { id: 'persuasion', name: '談判技巧', level: 1, maxLevel: 5, description: '在對話中獲得更多選項與價格優惠。', type: 'LEADERSHIP', progress: 0 }
+];
 
 export class GameEngine {
   private state: GameState;
@@ -8,6 +25,15 @@ export class GameEngine {
   constructor(initialState: GameState) {
     // 建立深拷貝以避免直接修改 React 狀態，確保狀態管理的純粹性
     this.state = JSON.parse(JSON.stringify(initialState));
+    
+    // 確保回合數與世界階段有初始值
+    if (this.state.turn === undefined) this.state.turn = 1;
+    if (this.state.worldStage === undefined) this.state.worldStage = 1;
+
+    // 技能初始化：如果沒有技能，則載入預設技能
+    if (!this.state.skills || this.state.skills.length === 0) {
+        this.state.skills = JSON.parse(JSON.stringify(INITIAL_SKILLS));
+    }
   }
 
   /**
@@ -15,6 +41,45 @@ export class GameEngine {
    */
   public getState(): GameState {
     return this.state;
+  }
+
+  /**
+   * 推進回合並檢查劇情事件
+   * @returns 觸發的劇情描述 (若無則為 null)
+   */
+  private advanceTurn(): string | null {
+    this.state.turn += 1;
+    const currentTurn = this.state.turn;
+    
+    // 簡單的世界階段推進邏輯
+    if (currentTurn >= 10 && this.state.worldStage < 2) this.state.worldStage = 2;
+    if (currentTurn >= 20 && this.state.worldStage < 3) this.state.worldStage = 3;
+
+    // 檢查大事表
+    if (TIMELINE[currentTurn]) {
+        return `[PLOT EVENT - TURN ${currentTurn}] ${TIMELINE[currentTurn]}`;
+    }
+    
+    return null;
+  }
+
+  /**
+   * 升級指定技能
+   * @param skillName 技能名稱
+   * @returns 升級結果訊息，若失敗則回傳 null 或錯誤原因
+   */
+  public upgradeSkill(skillName: string): string {
+      const skill = this.state.skills.find(s => s.name === skillName);
+      
+      if (!skill) return "[ERROR] 技能不存在";
+      if (this.state.freeSkillPoints <= 0) return "[ERROR] 技能點數不足";
+      if (skill.level >= skill.maxLevel) return "[ERROR] 技能已達最高等級";
+
+      // 執行升級
+      skill.level += 1;
+      this.state.freeSkillPoints -= 1;
+
+      return `[SYSTEM] 技能升級成功: ${skill.name} (LV.${skill.level})`;
   }
 
   /**
@@ -75,23 +140,26 @@ export class GameEngine {
         logs.push(`[SYSTEM] 獲得物品: ${events.new_item}`);
     }
     
-    // 5. 獲得新技能 (本地註冊)
+    // 5. 獲得新技能 (本地註冊，防止重複)
     if (events.new_skill) {
-        const skill = {
-            id: events.new_skill.name.toLowerCase().replace(/\s/g, '_'),
-            name: events.new_skill.name,
-            level: 1,
-            maxLevel: 5,
-            description: events.new_skill.description,
-            type: events.new_skill.type || 'INNATE',
-            progress: 0
-        };
-        
         // 檢查是否重複
-        if (!this.state.skills.find(s => s.name === skill.name)) {
-            // @ts-ignore
+        const existingSkill = this.state.skills.find(s => s.name === events.new_skill!.name);
+        
+        if (!existingSkill) {
+            const skill: Skill = {
+                id: events.new_skill.name.toLowerCase().replace(/\s/g, '_'),
+                name: events.new_skill.name,
+                level: 1,
+                maxLevel: 5,
+                description: events.new_skill.description,
+                type: events.new_skill.type || 'INNATE',
+                progress: 0
+            };
             this.state.skills.push(skill);
-            logs.push(`[SYSTEM] 習得新技能: ${skill.name}`);
+            logs.push(`[SYSTEM] 💡 領悟新技能: ${skill.name}`);
+        } else {
+            // 如果技能已存在，則視為獲得經驗或升級提示 (可選邏輯)
+            // 這裡簡單處理：不重複添加
         }
     }
 
@@ -167,6 +235,9 @@ export class GameEngine {
   public processAction(type: string, payload: any): string {
     let log = "";
     
+    // 1. 推進回合時鐘
+    const plotEvent = this.advanceTurn();
+
     try {
       switch (type) {
         case 'TRAVEL':
@@ -184,6 +255,11 @@ export class GameEngine {
     } catch (error: any) {
       console.error("GameEngine Error:", error);
       return `[SYSTEM] 引擎運算錯誤: ${error.message}`;
+    }
+
+    // 2. 如果有觸發劇情事件，追加到 Log 中
+    if (plotEvent) {
+        log += `\n\n${plotEvent}\n(請務必在回應中反映此世界事件的影響)`;
     }
 
     return log;

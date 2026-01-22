@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GameService } from './services/geminiService';
 import { GameEngine } from './services/GameEngine';
-import { GameState, ChatMessage, FactionDetails, PlayerProfile, GameConfig, ShopItem } from './types';
+import { GameState, ChatMessage, FactionDetails, PlayerProfile, GameConfig, ShopItem, FactionNews } from './types';
 import { ITEMS } from './data/rules';
 import { Terminal } from './components/Terminal';
 import { HUD } from './components/HUD';
@@ -15,6 +15,8 @@ import { ShopModal } from './components/ShopModal';
 
 // 設定顯示歷史紀錄的最大長度，優化效能
 const MAX_HISTORY_LEN = 50;
+// 設定新聞最大保留數量
+const MAX_NEWS_LEN = 15;
 
 const App: React.FC = () => {
   const [gameService] = useState(() => new GameService());
@@ -52,7 +54,9 @@ const App: React.FC = () => {
     shop: null,
     // News tracking initialization
     lastNewsDate: '3150-01-01',
-    actionStepCount: 0
+    actionStepCount: 0,
+    turn: 1,
+    worldStage: 1
   });
 
   // 自動存檔機制 (已優化：存檔瘦身)
@@ -65,8 +69,8 @@ const App: React.FC = () => {
           // 歷史訊息只保留最後 5 則 (作為回顧用，避免存檔無限膨脹)
           history: gameState.history.slice(-5),
           // 世界觀動態資料也僅保留最新紀錄
-          news: (gameState.news || []).slice(-10),
-          gossip: (gameState.gossip || []).slice(-10),
+          news: (gameState.news || []).slice(-MAX_NEWS_LEN),
+          gossip: (gameState.gossip || []).slice(-MAX_NEWS_LEN),
           chronicles: (gameState.chronicles || []).slice(-20),
           // 注意：credits, location, skills, inventory 等核心數值因 ...gameState 而完整保留
         };
@@ -112,7 +116,9 @@ const App: React.FC = () => {
         skills: [],
         psionics: { level: 0, energy: 0, max_energy: 0, abilities: [] },
         lastNewsDate: '3150-01-01',
-        actionStepCount: 0
+        actionStepCount: 0,
+        turn: 1,
+        worldStage: 1
       };
 
       // 2. 啟動本地引擎
@@ -121,20 +127,20 @@ const App: React.FC = () => {
       // 3. 啟動 AI 會話 (僅設定 Persona)
       await gameService.startSession(name, faction, profile, config);
 
-      // 4. 更新 React 狀態 (立即顯示 HUD 數值)
-      setGameState(initialState);
+      // 4. 更新 React 狀態 (立即顯示 HUD 數值，此時 Engine 已經會初始化 Default Skills)
+      setGameState(engineRef.current.getState());
 
-      // 5. 生成開場劇情 (Prompt 會要求生成初始 Skills 與 Faction Data)
-      const introLog = `[SYSTEM] Neural Link Established. Subject: ${name}. Faction: ${faction.name}. Location: ${initialState.location}. Initializing skills and faction database.`;
-      // 開場強制要求生成第一批新聞
-      const narrative = await gameService.generateStory(introLog, initialState, "Initialize world state: Generate initial Faction News, Gossip, and Player Skills.");
+      // 5. 生成開場劇情
+      const introLog = `[SYSTEM] Neural Link Established. Subject: ${name}. Faction: ${faction.name}. Location: ${initialState.location}. Initializing faction database.`;
+      const narrative = await gameService.generateStory(introLog, initialState, "Initialize world state: Generate initial Faction News and Gossip.");
       
       // 6. 混合更新
       setGameState(prev => ({ 
         ...prev, 
         ...narrative,
-        // 混合策略：若 AI 有回傳技能/勢力/聲望則更新，否則保留初始值
-        skills: narrative.skills && narrative.skills.length > 0 ? narrative.skills : prev.skills,
+        // 開場時，技能完全信任 Engine 初始化結果
+        skills: engineRef.current!.getState().skills, 
+        
         factions: narrative.factions || prev.factions,
         myFaction: narrative.myFaction || prev.myFaction,
         reputation: narrative.reputation || prev.reputation,
@@ -173,6 +179,7 @@ const App: React.FC = () => {
     
     try {
       // 2. Engine 運算 (移動、休息、交易等 Cost 計算)
+      // Engine 內部會在此時 advanceTurn() 並可能回傳 [PLOT EVENT] 字串
       let systemLog = `[USER ACTION] ${userAction}`;
       const lower = userAction.toLowerCase();
       let engineUpdated = false;
@@ -200,6 +207,10 @@ const App: React.FC = () => {
                systemLog = `[SYSTEM] 玩家離開了商店。`;
                setGameState(prev => ({ ...prev, shop: null })); 
            }
+      } else {
+           // 處理普通對話指令，也需要讓 Engine 推進回合
+           systemLog = engineRef.current.processAction('TALK', null);
+           engineUpdated = true;
       }
 
       // 3. Engine 狀態同步 & News/Gossip 觸發判定
@@ -246,11 +257,11 @@ const App: React.FC = () => {
         silent 
       };
 
-      // 5. 處理 AI 回傳的遊戲事件 (XP, HP, LevelUp)
+      // 5. 處理 AI 回傳的遊戲事件 (XP, HP, LevelUp, NewSkill)
       let eventLogs: string[] = [];
       if (narrative.game_events) {
          eventLogs = engineRef.current.applyGameEvents(narrative.game_events);
-         // 重新取得應用事件後的 Engine 狀態
+         // 重新取得應用事件後的 Engine 狀態 (包含新技能)
          currentEngineState = engineRef.current.getState();
       }
       
@@ -264,12 +275,22 @@ const App: React.FC = () => {
             });
         }
         
-        // State 裁切優化：只保留最後 MAX_HISTORY_LEN 筆
+        // State 裁切優化
         const trimmedHistory = newHistory.slice(-MAX_HISTORY_LEN);
+        
+        // 新聞與流言堆疊邏輯
+        const incomingNews: FactionNews[] = (narrative.news || []).map(n => ({
+             ...n, 
+             turn: currentEngineState.turn,
+             isMajorEvent: false
+        }));
+        
+        const combinedNews = [...(prev.news || []), ...incomingNews].slice(-MAX_NEWS_LEN);
+        const combinedGossip = [...(prev.gossip || []), ...(narrative.gossip || [])].slice(-MAX_NEWS_LEN);
 
         return {
             ...prev,
-            // 優先使用 Engine 的硬數值 (包含 applyGameEvents 更新後的 XP, HP, Level)
+            // 優先使用 Engine 的硬數值
             credits: currentEngineState.credits,
             health: currentEngineState.health,
             level: currentEngineState.level,
@@ -280,6 +301,11 @@ const App: React.FC = () => {
             date: currentEngineState.date,
             location: currentEngineState.location,
             inventory: currentEngineState.inventory,
+            turn: currentEngineState.turn,
+            worldStage: currentEngineState.worldStage,
+            
+            // 技能完全信任 Engine，不再讀取 narrative.skills
+            skills: currentEngineState.skills,
 
             // 更新計數器
             lastNewsDate: newLastNewsDate,
@@ -290,17 +316,13 @@ const App: React.FC = () => {
             currentOptions: narrative.options || [],
             latestImagePrompt: narrative.image_prompt,
             
-            // News/Gossip: 只有當 AI 有回傳內容時才更新，否則保留舊的 (避免被空陣列覆蓋)
-            news: (narrative.news && narrative.news.length > 0) ? narrative.news : prev.news,
-            gossip: (narrative.gossip && narrative.gossip.length > 0) ? narrative.gossip : prev.gossip,
+            news: combinedNews,
+            gossip: combinedGossip,
             
             chronicles: narrative.chronicles || prev.chronicles,
             shop: narrative.shop,
 
-            // 技能與勢力：AI 優先，但如果 Engine (透過事件) 新增了技能，需要保留
-            // 這裡採取簡單策略：若 AI 有回傳技能清單則使用，否則保留目前狀態
-            skills: (narrative.skills && narrative.skills.length > 0) ? narrative.skills : prev.skills,
-            
+            // 勢力與聲望仍由 AI 控制 (除非未來也移入 Engine)
             factions: narrative.factions || prev.factions,
             myFaction: narrative.myFaction || prev.myFaction,
             reputation: narrative.reputation || prev.reputation
@@ -321,16 +343,24 @@ const App: React.FC = () => {
 
   const handleSkillUpgrade = (skillName: string) => {
     if (!engineRef.current) return;
-    const state = engineRef.current.getState();
     
-    // 處理前端扣點
-    if (state.freeSkillPoints > 0) {
-        state.freeSkillPoints -= 1;
-        // 立即更新 UI
-        setGameState(prev => ({ ...prev, freeSkillPoints: state.freeSkillPoints }));
-        
-        // 通知 AI 進行技能等級與描述更新
-        handleAction(`[SYSTEM] 玩家消耗 1 點技能點，升級技能 "${skillName}"。請更新該技能等級與描述。`, true);
+    // 呼叫 Engine 進行升級運算
+    const resultMsg = engineRef.current.upgradeSkill(skillName);
+    const updatedState = engineRef.current.getState();
+
+    // 更新 UI State
+    setGameState(prev => ({ 
+        ...prev, 
+        skills: updatedState.skills, // 確保 UI 同步最新的技能等級
+        freeSkillPoints: updatedState.freeSkillPoints
+    }));
+    
+    // 顯示升級結果日誌
+    if (resultMsg) {
+         setGameState(prev => ({ 
+             ...prev, 
+             history: [...prev.history, { role: 'system' as const, content: resultMsg, timestamp: Date.now() }].slice(-MAX_HISTORY_LEN) 
+         }));
     }
   };
 
