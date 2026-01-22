@@ -88,7 +88,7 @@ export class GameEngine {
              if (key in this.state.factions) {
                  // @ts-ignore
                  this.state.factions[key] += val;
-                 logs.push(`[SYSTEM] 與 ${key.toUpperCase()} 關係${val > 0 ? '提升' : '下降'}`);
+                 // 移除聲望變化的日誌顯示，僅在後台數值變動
              }
         }
     }

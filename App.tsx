@@ -43,6 +43,11 @@ const App: React.FC = () => {
     gameStarted: false,
     inventory: [],
     factions: { earth: 0, mars: 0, belt: 0, jupiter: 0, saturn: 0 },
+    worldFactions: {
+        EUG: { members: 2000000000, influence: 90 },
+        RED_CULT: { members: 20000000, influence: 70 },
+        FREE_PEOPLE: { members: 18000000, influence: 5 }
+    },
     reputation: '未知',
     currentOptions: [],
     news: [],
@@ -58,15 +63,12 @@ const App: React.FC = () => {
     interaction: { targetName: null, status: 'NONE' }
   });
 
-  // [需求 1] 修改 startGame：改為阻塞式加載
   const startGame = async (name: string, faction: FactionDetails, profile: PlayerProfile, avatarUrl: string, config: GameConfig) => {
-    setIsProcessing(true); // 觸發 Intro 的加載狀態
+    setIsProcessing(true);
     
     try {
-      // 1. 初始化 AI 會話
       await gameService.startSession(name, faction, profile, config);
 
-      // 2. 建立臨時起始狀態 (用於第一次請求)
       const placeholderState: GameState = {
         playerName: name,
         playerProfile: profile,
@@ -84,9 +86,14 @@ const App: React.FC = () => {
         factionId: faction.id,
         history: [],
         isGameOver: false,
-        gameStarted: false,
+        gameStarted: true, // 重要修正：在傳給引擎前就設為 true，防止回彈
         inventory: [],
         factions: { earth: 0, mars: 0, belt: 0, jupiter: 0, saturn: 0 },
+        worldFactions: {
+            EUG: { members: 2000000000, influence: 90 },
+            RED_CULT: { members: 20000000, influence: 70 },
+            FREE_PEOPLE: { members: 18000000, influence: 5 }
+        },
         reputation: '中立',
         currentOptions: [],
         skills: [],
@@ -96,14 +103,12 @@ const App: React.FC = () => {
         interaction: { targetName: null, status: 'NONE' }
       };
 
-      // 3. 請求第一筆角色資料與劇情 (包含 AI 生成的職業、初始技能、起始地點)
       const initialNarrative = await gameService.generateStory(
         `[SYSTEM] Neural Link Initializing for ${name}. Analyzing biological profile and faction alignment...`,
         placeholderState,
         "這是開場回應。請提供: description, generated_identity, starting_location, initial_skills。"
       );
 
-      // 4. 根據 AI 回傳資料更新引擎與狀態
       const finalInitialState: GameState = {
         ...placeholderState,
         identity: initialNarrative.generated_identity,
@@ -120,16 +125,14 @@ const App: React.FC = () => {
         chronicles: initialNarrative.chronicles
       };
 
-      // 5. 初始化引擎並同步 AI 賦予的技能
       engineRef.current = new GameEngine(finalInitialState);
       if (initialNarrative.game_events?.initial_skills) {
           engineRef.current.setSkills(initialNarrative.game_events.initial_skills);
       }
 
-      // 6. 正式啟動遊戲畫面
       setGameState({
           ...engineRef.current.getState(),
-          gameStarted: true // 最後才設為 true
+          gameStarted: true
       });
 
     } catch (error: any) { 
@@ -181,7 +184,8 @@ const App: React.FC = () => {
             shop: narrative.shop || null,
             reputation: narrative.reputation || prev.reputation,
             myFaction: narrative.myFaction || prev.myFaction,
-            factions: narrative.factions || prev.factions
+            factions: narrative.factions || prev.factions,
+            worldFactions: narrative.world_factions || prev.worldFactions
         };
       });
     } catch (err: any) {

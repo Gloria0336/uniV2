@@ -5,6 +5,11 @@ export interface PlayerProfile {
   appearance: string;
 }
 
+export interface FactionWorldStatus {
+  members: number;
+  influence: number;
+}
+
 export interface FactionNews {
   faction: string;
   status: string;
@@ -108,6 +113,11 @@ export interface GameState {
     belt: number;
     jupiter: number;
     saturn: number;
+  };
+  worldFactions: {
+    EUG: FactionWorldStatus;
+    RED_CULT: FactionWorldStatus;
+    FREE_PEOPLE: FactionWorldStatus;
   };
   reputation: string;
   myFaction?: MyFaction;

@@ -15,10 +15,11 @@ import {
   MyFaction,
   PsionicStatus,
   GameEvents,
-  ActionCategory
+  ActionCategory,
+  FactionWorldStatus
 } from '../types';
 
-// 更新後的敘事專用 Schema，新增身份與初始地點
+// 更新後的敘事專用 Schema，新增身份、初始地點與全球勢力數據
 const narrativeSchema = {
   type: Type.OBJECT,
   properties: {
@@ -89,6 +90,15 @@ const narrativeSchema = {
             }
           }
         }
+      }
+    },
+    world_factions: {
+      type: Type.OBJECT,
+      nullable: true,
+      properties: {
+        EUG: { type: Type.OBJECT, properties: { members: { type: Type.NUMBER }, influence: { type: Type.NUMBER } } },
+        RED_CULT: { type: Type.OBJECT, properties: { members: { type: Type.NUMBER }, influence: { type: Type.NUMBER } } },
+        FREE_PEOPLE: { type: Type.OBJECT, properties: { members: { type: Type.NUMBER }, influence: { type: Type.NUMBER } } }
       }
     },
     reputation: { type: Type.STRING },
@@ -163,6 +173,11 @@ export interface NarrativeResponse {
   image_prompt: string;
   options: GameOption[];
   game_events?: GameEvents;
+  world_factions?: {
+    EUG: FactionWorldStatus;
+    RED_CULT: FactionWorldStatus;
+    FREE_PEOPLE: FactionWorldStatus;
+  };
   reputation?: string;
   factions?: { earth: number; mars: number; belt: number; jupiter: number; saturn: number };
   myFaction?: MyFaction;
@@ -190,6 +205,7 @@ const LORE_DATA = `
 【連貫性協議】
 1. **選項引導**: 每個選項 (GameOption) 必須包含 'action_type' 與 'ap_cost'。
 2. **語系限制**: 嚴禁使用英文回傳描述，除非是專業術語。
+3. **勢力動態**: 你可以根據劇情進展更新各大勢力的成員數量與全球影響力 (world_factions)。
 `;
 
 export class GameService {
@@ -296,6 +312,7 @@ ${specialRequests}
         image_prompt: raw.image_prompt || "cyberpunk space station",
         options: Array.isArray(raw.options) ? raw.options : [],
         game_events: raw.game_events,
+        world_factions: raw.world_factions,
         reputation: raw.reputation,
         factions: raw.factions,
         myFaction: raw.myFaction,
