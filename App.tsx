@@ -13,6 +13,9 @@ import { SkillsPanel } from './components/SkillsPanel';
 import { TeamPanel } from './components/TeamPanel';
 import { ShopModal } from './components/ShopModal';
 
+// 設定顯示歷史紀錄的最大長度，優化效能
+const MAX_HISTORY_LEN = 50;
+
 const App: React.FC = () => {
   const [gameService] = useState(() => new GameService());
   const engineRef = useRef<GameEngine | null>(null);
@@ -49,14 +52,31 @@ const App: React.FC = () => {
     shop: null
   });
 
-  // 自動存檔機制
+  // 自動存檔機制 (已優化：存檔瘦身)
   useEffect(() => {
     if (gameState.gameStarted && engineRef.current) {
-      const savePayload = {
-        reactState: gameState,
-        engineState: engineRef.current.getState()
-      };
-      localStorage.setItem('sol_civ_save_v1', JSON.stringify(savePayload));
+      try {
+        // 建立存檔專用的輕量化 State
+        const minifiedReactState = {
+          ...gameState,
+          // 歷史訊息只保留最後 5 則 (作為回顧用，避免存檔無限膨脹)
+          history: gameState.history.slice(-5),
+          // 世界觀動態資料也僅保留最新紀錄
+          news: (gameState.news || []).slice(-10),
+          gossip: (gameState.gossip || []).slice(-10),
+          chronicles: (gameState.chronicles || []).slice(-20),
+          // 注意：credits, location, skills, inventory 等核心數值因 ...gameState 而完整保留
+        };
+
+        const savePayload = {
+          reactState: minifiedReactState,
+          engineState: engineRef.current.getState()
+        };
+        
+        localStorage.setItem('sol_civ_save_v1', JSON.stringify(savePayload));
+      } catch (e) {
+        console.warn("Auto-save failed (Storage Full?):", e);
+      }
     }
   }, [gameState]);
 
@@ -114,11 +134,11 @@ const App: React.FC = () => {
         reputation: narrative.reputation || prev.reputation,
         
         history: [{ 
-          role: 'model', 
+          role: 'model' as const, 
           content: narrative.description, 
           timestamp: Date.now(), 
           imagePrompt: narrative.image_prompt 
-        }]
+        } as ChatMessage]
       }));
 
     } catch (error: any) { 
@@ -136,17 +156,17 @@ const App: React.FC = () => {
     setInput('');
     setIsProcessing(true);
     
-    // 1. 立即顯示玩家輸入
+    // 1. 立即顯示玩家輸入 (State 裁切優化)
     if (!silent) {
       setGameState(prev => ({ 
         ...prev, 
         currentOptions: [], 
-        history: [...prev.history, { role: 'user', content: userAction, timestamp: Date.now() }] 
+        history: [...prev.history, { role: 'user' as const, content: userAction, timestamp: Date.now() }].slice(-MAX_HISTORY_LEN) 
       }));
     }
     
     try {
-      // 2. Engine 運算
+      // 2. Engine 運算 (移動、休息、交易等 Cost 計算)
       let systemLog = `[USER ACTION] ${userAction}`;
       const lower = userAction.toLowerCase();
       let engineUpdated = false;
@@ -176,13 +196,13 @@ const App: React.FC = () => {
            }
       }
 
-      // 3. Engine 狀態同步 (硬數值)
-      const currentEngineState = engineRef.current.getState();
+      // 3. Engine 狀態同步 (預先更新 Cost, Date)
+      let currentEngineState = engineRef.current.getState();
       if (engineUpdated) {
           setGameState(prev => ({
               ...prev,
-              ...currentEngineState, // 更新 Credits, HP, Date, Location
-              history: silent ? prev.history : [...prev.history] 
+              ...currentEngineState, 
+              history: silent ? prev.history : [...prev.history].slice(-MAX_HISTORY_LEN)
           }));
       }
 
@@ -196,37 +216,67 @@ const App: React.FC = () => {
         imagePrompt: narrative.image_prompt, 
         silent 
       };
+
+      // 5. 處理 AI 回傳的遊戲事件 (XP, HP, LevelUp)
+      let eventLogs: string[] = [];
+      if (narrative.game_events) {
+         eventLogs = engineRef.current.applyGameEvents(narrative.game_events);
+         // 重新取得應用事件後的 Engine 狀態
+         currentEngineState = engineRef.current.getState();
+      }
       
-      // 5. 混合更新策略
-      setGameState(prev => ({ 
-        ...prev, 
-        // 優先使用 Engine 的硬數值 (因為已經在上一步 sync 了，這裡只是防禦性確保)
-        credits: currentEngineState.credits,
-        health: currentEngineState.health,
-        actionPoints: currentEngineState.actionPoints,
-        date: currentEngineState.date,
-        location: currentEngineState.location,
-        inventory: currentEngineState.inventory,
+      // 6. 最終狀態更新 (混合 Engine 數值與 AI 敘事)
+      setGameState(prev => {
+        const newHistory = silent ? prev.history : [...prev.history, modelMsg];
+        // 將 Engine 產生的事件訊息 (升級、受傷) 加到對話紀錄
+        if (eventLogs.length > 0 && !silent) {
+            eventLogs.forEach(log => {
+                newHistory.push({ role: 'system' as const, content: log, timestamp: Date.now() });
+            });
+        }
+        
+        // State 裁切優化：只保留最後 MAX_HISTORY_LEN 筆
+        const trimmedHistory = newHistory.slice(-MAX_HISTORY_LEN);
 
-        // 使用 AI 的軟數值 (如果有的話)
-        history: silent ? prev.history : [...prev.history, modelMsg],
-        currentOptions: narrative.options || [],
-        latestImagePrompt: narrative.image_prompt,
-        news: narrative.news || prev.news,
-        gossip: narrative.gossip || prev.gossip,
-        chronicles: narrative.chronicles || prev.chronicles,
-        shop: narrative.shop,
+        return {
+            ...prev,
+            // 優先使用 Engine 的硬數值 (包含 applyGameEvents 更新後的 XP, HP, Level)
+            credits: currentEngineState.credits,
+            health: currentEngineState.health,
+            level: currentEngineState.level,
+            experience: currentEngineState.experience,
+            nextLevelXp: currentEngineState.nextLevelXp,
+            freeSkillPoints: currentEngineState.freeSkillPoints,
+            actionPoints: currentEngineState.actionPoints,
+            date: currentEngineState.date,
+            location: currentEngineState.location,
+            inventory: currentEngineState.inventory,
 
-        // 關鍵修正：技能與勢力資料合併
-        skills: (narrative.skills && narrative.skills.length > 0) ? narrative.skills : prev.skills,
-        factions: narrative.factions || prev.factions,
-        myFaction: narrative.myFaction || prev.myFaction,
-        reputation: narrative.reputation || prev.reputation
-      }));
+            // 使用 AI 的軟數值
+            history: trimmedHistory,
+            currentOptions: narrative.options || [],
+            latestImagePrompt: narrative.image_prompt,
+            news: narrative.news || prev.news,
+            gossip: narrative.gossip || prev.gossip,
+            chronicles: narrative.chronicles || prev.chronicles,
+            shop: narrative.shop,
+
+            // 技能與勢力：AI 優先，但如果 Engine (透過事件) 新增了技能，需要保留
+            // 這裡採取簡單策略：若 AI 有回傳技能清單則使用，否則保留目前狀態
+            skills: (narrative.skills && narrative.skills.length > 0) ? narrative.skills : prev.skills,
+            
+            factions: narrative.factions || prev.factions,
+            myFaction: narrative.myFaction || prev.myFaction,
+            reputation: narrative.reputation || prev.reputation
+        };
+      });
 
     } catch (error: any) {
       if (!silent) {
-        setGameState(prev => ({ ...prev, history: [...prev.history, { role: 'system', content: `[ERROR]: ${error.message}`, timestamp: Date.now() }] }));
+        setGameState(prev => ({ 
+            ...prev, 
+            history: [...prev.history, { role: 'system' as const, content: `[ERROR]: ${error.message}`, timestamp: Date.now() }].slice(-MAX_HISTORY_LEN) 
+        }));
       }
     } finally { 
       setIsProcessing(false); 
@@ -236,19 +286,14 @@ const App: React.FC = () => {
   const handleSkillUpgrade = (skillName: string) => {
     if (!engineRef.current) return;
     const state = engineRef.current.getState();
-    // 注意：Engine 中其實沒有 skills 的詳細資料，只有空殼。
-    // 但我們可以在前端做簡單的扣點邏輯，然後讓 AI 更新 skill level
     
-    // 這裡我們只處理「扣除技能點」的硬邏輯
+    // 處理前端扣點
     if (state.freeSkillPoints > 0) {
         state.freeSkillPoints -= 1;
-        // Engine 不負責維護 skill level，這由 AI 維護。
-        // 我們手動通知 AI 這個動作
-        
-        // 立即更新 UI 的剩餘點數
+        // 立即更新 UI
         setGameState(prev => ({ ...prev, freeSkillPoints: state.freeSkillPoints }));
         
-        // 通知 AI
+        // 通知 AI 進行技能等級與描述更新
         handleAction(`[SYSTEM] 玩家消耗 1 點技能點，升級技能 "${skillName}"。請更新該技能等級與描述。`, true);
     }
   };

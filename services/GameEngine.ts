@@ -1,5 +1,5 @@
 
-import { GameState } from '../types';
+import { GameState, GameEvents } from '../types';
 import { CONSTANTS, LOCATIONS, ITEMS } from '../data/rules';
 
 export class GameEngine {
@@ -15,6 +15,87 @@ export class GameEngine {
    */
   public getState(): GameState {
     return this.state;
+  }
+
+  /**
+   * 處理 AI 回傳的遊戲事件 (XP, HP, Items)
+   * 包含升級判定邏輯
+   * @returns 系統訊息列表
+   */
+  public applyGameEvents(events: GameEvents): string[] {
+    const logs: string[] = [];
+    
+    // 1. XP 與 升級
+    if (events.xp_gain) {
+      this.state.experience += events.xp_gain;
+      logs.push(`[SYSTEM] 獲得經驗值: ${events.xp_gain}`);
+
+      // 檢查是否升級
+      if (this.state.experience >= this.state.nextLevelXp) {
+         this.state.level += 1;
+         this.state.freeSkillPoints += 1;
+         // 扣除經驗值並提升下一級門檻
+         this.state.experience -= this.state.nextLevelXp;
+         this.state.nextLevelXp = Math.floor(this.state.nextLevelXp * CONSTANTS.XP_SCALING_FACTOR);
+         
+         logs.push(`[SYSTEM] ⭐ 等級提升！目前等級: ${this.state.level} (獲得 1 點技能點)`);
+         logs.push(`[SYSTEM] 下一級所需 XP: ${this.state.nextLevelXp}`);
+      }
+    }
+
+    // 2. HP 變更 (戰鬥/治療)
+    if (events.hp_change) {
+      const oldHp = this.state.health;
+      this.state.health = Math.max(0, Math.min(CONSTANTS.BASE_HP, this.state.health + events.hp_change));
+      
+      if (events.hp_change < 0) {
+          logs.push(`[SYSTEM] 警告：受到傷害 ${Math.abs(events.hp_change)} 點 (HP: ${this.state.health})`);
+      } else {
+          logs.push(`[SYSTEM] 生命恢復 ${events.hp_change} 點 (HP: ${this.state.health})`);
+      }
+    }
+    
+    // 3. 勢力變更
+    if (events.reputation_change) {
+        for (const [key, val] of Object.entries(events.reputation_change)) {
+             if (key in this.state.factions) {
+                 // @ts-ignore
+                 this.state.factions[key] += val;
+                 // @ts-ignore
+                 const trend = val > 0 ? '提升' : '下降';
+                 logs.push(`[SYSTEM] 與 ${key.toUpperCase()} 的關係${trend} (${val > 0 ? '+' : ''}${val})`);
+             }
+        }
+    }
+
+    // 4. 獲得物品
+    if (events.new_item) {
+        if (!this.state.inventory) this.state.inventory = [];
+        this.state.inventory.push(events.new_item);
+        logs.push(`[SYSTEM] 獲得物品: ${events.new_item}`);
+    }
+    
+    // 5. 獲得新技能 (本地註冊)
+    if (events.new_skill) {
+        const skill = {
+            id: events.new_skill.name.toLowerCase().replace(/\s/g, '_'),
+            name: events.new_skill.name,
+            level: 1,
+            maxLevel: 5,
+            description: events.new_skill.description,
+            type: events.new_skill.type || 'INNATE',
+            progress: 0
+        };
+        
+        // 檢查是否重複
+        if (!this.state.skills.find(s => s.name === skill.name)) {
+            // @ts-ignore
+            this.state.skills.push(skill);
+            logs.push(`[SYSTEM] 習得新技能: ${skill.name}`);
+        }
+    }
+
+    return logs;
   }
 
   /**

@@ -10,8 +10,10 @@ interface TerminalProps {
 export const Terminal: React.FC<TerminalProps> = ({ messages, isProcessing }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   
-  // 過濾掉靜默消息
-  const visibleMessages = messages.filter(m => !m.silent);
+  // 優化：過濾掉靜默消息，並只保留最後 50 筆渲染，確保 DOM 輕量化
+  const visibleMessages = messages
+    .filter(m => !m.silent)
+    .slice(-50);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -23,7 +25,7 @@ export const Terminal: React.FC<TerminalProps> = ({ messages, isProcessing }) =>
       
       {visibleMessages.map((msg, idx) => (
         <div
-          key={idx}
+          key={msg.timestamp + idx} // 使用 timestamp 增加 key 的唯一性
           className={`flex flex-col ${
             msg.role === 'user' ? 'items-end' : 'items-start'
           } animate-fade-in`}

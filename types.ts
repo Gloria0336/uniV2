@@ -1,4 +1,5 @@
 
+
 export interface PlayerProfile {
   gender: string;
   personality: string;
@@ -119,6 +120,25 @@ export interface GameState {
   shop?: ShopData | null; // 商店狀態
 }
 
+// 新增：AI 回傳的遊戲事件
+export interface GameEvents {
+  xp_gain?: number;
+  hp_change?: number; // 負數為傷害，正數為治療
+  reputation_change?: {
+    earth?: number;
+    mars?: number;
+    belt?: number;
+    jupiter?: number;
+    saturn?: number;
+  };
+  new_item?: string;
+  new_skill?: {
+    name: string;
+    type: 'INNATE' | 'PSIONIC' | 'TECH' | 'LEADERSHIP';
+    description: string;
+  };
+}
+
 // 新增：本地運算結果介面
 export interface GameActionResult {
   success: boolean;
@@ -158,41 +178,6 @@ export interface FactionDetails {
   name: string;
   description: string;
   colorTheme: string;
-}
-
-export interface GeminiResponseSchema {
-  description: string;
-  current_location: string;
-  image_prompt: string;
-  status: {
-    money: number;
-    health: number;
-    level: number;
-    experience: number;
-    actionPoints: number;
-    freeSkillPoints: number;
-    date: string;
-    identity: string;
-    inventory: string[];
-    factions: {
-      earth: number;
-      mars: number;
-      belt: number;
-      jupiter: number;
-      saturn: number;
-    };
-    reputation: string;
-    psionics: PsionicStatus;
-    skills: Skill[];
-    myFaction?: MyFaction;
-  };
-  news: FactionNews[];
-  gossip: GossipItem[];
-  chronicles: ChronicleEvent[];
-  options: GameOption[];
-  isGameOver: boolean;
-  gameSummary?: string;
-  shop?: ShopData | null; // 商店回應
 }
 
 export const FACTIONS: FactionDetails[] = [

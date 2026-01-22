@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, Type, GenerateContentResponse, Chat } from "@google/genai";
+import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { 
   FactionDetails, 
   PlayerProfile, 
@@ -13,12 +13,11 @@ import {
   ShopItem,
   Skill,
   MyFaction,
-  PsionicStatus
+  PsionicStatus,
+  GameEvents
 } from '../types';
-import { GameEngine } from './GameEngine';
-import { ITEMS } from '../data/rules';
 
-// 新的敘事專用 Schema (混合模式：包含敘事性狀態)
+// 新的敘事專用 Schema
 const narrativeSchema = {
   type: Type.OBJECT,
   properties: {
@@ -35,11 +34,36 @@ const narrativeSchema = {
         } 
       } 
     },
-    // AI 負責生成的軟數值/敘事資料
-    reputation: { type: Type.STRING, description: "Text description of player's reputation" },
+    game_events: {
+      type: Type.OBJECT,
+      nullable: true,
+      properties: {
+        xp_gain: { type: Type.INTEGER },
+        hp_change: { type: Type.INTEGER },
+        reputation_change: { 
+          type: Type.OBJECT,
+          properties: {
+            earth: { type: Type.INTEGER },
+            mars: { type: Type.INTEGER },
+            belt: { type: Type.INTEGER },
+            jupiter: { type: Type.INTEGER },
+            saturn: { type: Type.INTEGER }
+          }
+        },
+        new_item: { type: Type.STRING },
+        new_skill: {
+          type: Type.OBJECT,
+          properties: {
+            name: { type: Type.STRING },
+            type: { type: Type.STRING },
+            description: { type: Type.STRING }
+          }
+        }
+      }
+    },
+    reputation: { type: Type.STRING },
     factions: {
       type: Type.OBJECT,
-      description: "Numeric standing with factions (-100 to 100)",
       properties: {
         earth: { type: Type.INTEGER },
         mars: { type: Type.INTEGER },
@@ -89,11 +113,9 @@ const narrativeSchema = {
         }
       }
     },
-    // 世界觀內容
     news: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { faction: { type: Type.STRING }, status: { type: Type.STRING }, headline: { type: Type.STRING } } } },
     gossip: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { source: { type: Type.STRING }, content: { type: Type.STRING }, reliability: { type: Type.STRING } } } },
     chronicles: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { year: { type: Type.STRING }, title: { type: Type.STRING }, description: { type: Type.STRING } } } },
-    // 商店
     shop: {
       type: Type.OBJECT,
       nullable: true,
@@ -124,12 +146,11 @@ export interface NarrativeResponse {
   description: string;
   image_prompt: string;
   options: GameOption[];
-  // Soft Data (AI Managed)
+  game_events?: GameEvents;
   reputation?: string;
   factions?: { earth: number; mars: number; belt: number; jupiter: number; saturn: number };
   skills?: Skill[];
   myFaction?: MyFaction;
-  // World Data
   news: FactionNews[];
   gossip: GossipItem[];
   chronicles: ChronicleEvent[];
@@ -146,30 +167,34 @@ const LORE_DATA = `
 
 【你的角色】
 你不是遊戲引擎，你是「敘事者」。
-你 **不可** 計算數值 (HP, Money, Date, Location 由引擎負責)。
-你 **必須** 負責生成與維護「敘事性資料」：技能名稱與描述、勢力關係變化、玩家組織詳情、聲望描述。
+你 **不可** 計算日誌與金錢 (由 Engine 負責)。
+你 **必須** 負責生成「敘事性資料」與「遊戲事件」。
+
+【遊戲事件 (Game Events)】
+當劇情涉及以下情況時，請使用 'game_events' 物件回傳數值變更，而不要直接修改 status：
+1. **經驗值 (xp_gain)**: 戰鬥勝利 (+20~50)、任務完成 (+100)、發現新地點 (+10)。
+2. **生命變化 (hp_change)**: 戰鬥受傷 (負數，如 -15)、醫療事件 (正數)。
+3. **物品獲得 (new_item)**: 探索發現或 NPC 贈送。
+4. **技能習得 (new_skill)**: 劇情觸發學習新能力。
+5. **勢力變更 (reputation_change)**: 使用 keys: earth, mars, belt, jupiter, saturn。
 
 【資料生成規則】
-1. **技能 (Skills)**: 初始遊戲時，根據玩家職業生成 3-4 個特色技能 (如 "Neural Hacking", "Diplomacy", "Plasma Pistol")。之後僅在劇情需要時更新。
-2. **勢力 (Factions)**: 若玩家行為取悅或冒犯某勢力，調整對應數值 (-100 ~ 100)。
-3. **玩家組織 (MyFaction)**: 若玩家招募追隨者或建立組織，生成詳細的 NPC 資料與組織特權。
-4. **聲望 (Reputation)**: 用一句帥氣的話描述玩家當前的名聲 (如 "Shadow of Mars", "EUG Wanted Level 5")。
+1. **技能 (Skills)**: 初始遊戲時，根據玩家職業生成 3-4 個特色技能。
+2. **聲望 (Reputation)**: 用一句帥氣的話描述玩家當前的名聲。
 
 【輸入格式】
 1. [PLAYER STATE]: 玩家當前硬數值。
 2. [SYSTEM LOG]: 剛剛發生的事件結果 (絕對事實)。
-
-【輸出規則】
-- 若 LOG 顯示失敗：描述失敗的過程與後果。
-- 若 LOG 顯示成功：描述成功的細節。
-- 若 LOG 顯示戰鬥/受傷：描述傷口與痛楚。
 `;
 
 export class GameService {
-  private chatSession?: Chat;
   private currentConfig?: GameConfig;
+  private systemInstruction: string = "";
+  // 保存對話歷史 (純粹的 User/Model 對話，不含 System)
   private history: { role: string; content: string }[] = [];
   private readonly TIMEOUT_MS: number = 60000;
+  // 設定最大保留的對話回合數 (10 則訊息 = 5 回合)
+  private readonly MAX_HISTORY_LENGTH: number = 10;
   
   constructor() {}
 
@@ -199,30 +224,31 @@ export class GameService {
 
   async startSession(playerName: string, faction: FactionDetails, profile: PlayerProfile, config: GameConfig): Promise<void> {
     this.currentConfig = config;
-    const sysInstruction = `
+    this.systemInstruction = `
 ${LORE_DATA}
 玩家資料：
 名稱: ${playerName}
 勢力: ${faction.name}
 性格: ${profile.personality}
 外貌: ${profile.appearance}
+回傳格式必須為符合 Schema 的 JSON。
 `;
+    // 重置歷史紀錄
+    this.history = [];
+  }
 
-    if (config.provider === 'GEMINI') {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-      this.chatSession = ai.chats.create({
-        model: 'gemini-3-pro-preview',
-        config: {
-          systemInstruction: sysInstruction,
-          responseMimeType: "application/json",
-          responseSchema: narrativeSchema,
-        },
-      });
-    } else {
-      this.history = [
-        { role: "system", content: sysInstruction + "\nOutput MUST be valid JSON matching the schema." }
-      ];
-    }
+  /**
+   * 取得裁切後的 Context Window
+   * 包含最近的 N 則訊息 + 當前最新的 User Prompt
+   */
+  private getContextWindow(newPrompt: string): { role: string; content: string }[] {
+    // 1. 取得最近的歷史紀錄 (Pruning)
+    const recentHistory = this.history.slice(-this.MAX_HISTORY_LENGTH);
+    
+    // 2. 如果有被裁切掉的訊息，這裡可以選擇是否插入摘要 (目前先略過，保持簡潔)
+    
+    // 3. 加入最新的 User Prompt
+    return [...recentHistory, { role: 'user', content: newPrompt }];
   }
 
   async generateStory(systemLog: string, currentState: GameState): Promise<NarrativeResponse> {
@@ -239,21 +265,59 @@ Inventory: ${currentState.inventory.join(', ')}
 ${systemLog}
 
 請根據 [SYSTEM LOG] 生成劇情。
-重要：若這是遊戲開始，請務必生成初始的 'skills' (3-4個)、'factions' 數值與 'myFaction' (若適用) 初始狀態。
-若有重要 NPC 互動，請更新 'myFaction' 中的 followers。
+若發生戰鬥、受傷或獲得獎勵，請務必填寫 game_events 欄位。
 `;
 
+    // 取得裁切後的上下文
+    const contextMessages = this.getContextWindow(contextPrompt);
+
+    let responseText = "";
+
     if (this.currentConfig?.provider === 'GEMINI') {
-      if (!this.chatSession) throw new Error("Neural Session Lost");
-      const res = await this.withTimeout(this.chatSession.sendMessage({ message: contextPrompt })) as GenerateContentResponse;
-      return this.parseResponse(res.text);
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+      
+      // 轉換格式符合 Gemini Content 結構
+      const geminiContents = contextMessages.map(msg => ({
+        role: msg.role === 'user' ? 'user' : 'model',
+        parts: [{ text: msg.content }]
+      }));
+
+      const response = await this.withTimeout(ai.models.generateContent({
+        model: 'gemini-3-pro-preview',
+        config: {
+          systemInstruction: this.systemInstruction,
+          responseMimeType: "application/json",
+          responseSchema: narrativeSchema,
+        },
+        contents: geminiContents
+      })) as GenerateContentResponse;
+
+      responseText = response.text || "{}";
+
     } else {
-      this.history.push({ role: "user", content: contextPrompt });
-      return await this.callOpenRouter();
+      // OpenRouter Logic
+      const openRouterMessages = [
+        { role: 'system', content: this.systemInstruction + "\nOutput MUST be valid JSON." },
+        ...contextMessages
+      ];
+
+      responseText = await this.callOpenRouter(openRouterMessages);
     }
+
+    // 成功後，將這次的對話存入歷史紀錄 (Full History)
+    // 注意：這裡存的是原始 Prompt 與 Response，下一次呼叫時 getContextWindow 會自動裁切
+    this.history.push({ role: 'user', content: contextPrompt });
+    
+    // 嘗試解析回應，若解析成功則將回應也存入歷史
+    const parsed = this.parseResponse(responseText);
+    
+    // 儲存 AI 的回應到歷史，讓它記得自己說過什麼
+    this.history.push({ role: 'model', content: parsed.description });
+
+    return parsed;
   }
 
-  private async callOpenRouter(): Promise<NarrativeResponse> {
+  private async callOpenRouter(messages: any[]): Promise<string> {
     const config = this.currentConfig!;
     try {
       const response = await this.withTimeout(fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -264,7 +328,7 @@ ${systemLog}
         },
         body: JSON.stringify({
           model: config.openRouterModel,
-          messages: this.history,
+          messages: messages,
           response_format: { type: "json_object" },
           max_tokens: 3000
         })
@@ -272,9 +336,7 @@ ${systemLog}
 
       if (!response.ok) throw new Error("OpenRouter Connection Error");
       const data = await response.json();
-      const content = data.choices?.[0]?.message?.content || "{}";
-      this.history.push({ role: "assistant", content });
-      return this.parseResponse(content);
+      return data.choices?.[0]?.message?.content || "{}";
     } catch (e: any) {
       throw new Error(`OpenRouter Fault: ${e.message}`);
     }
@@ -294,7 +356,7 @@ ${systemLog}
         image_prompt: "static noise, glitch art",
         options: [{ id: 1, text: "重試訊號", action_type: "retry" }],
         news: [], gossip: [], chronicles: [], shop: null,
-        skills: [], factions: undefined, reputation: "Unknown"
+        skills: [], factions: undefined, reputation: "Unknown", game_events: undefined
       };
     }
 
@@ -306,6 +368,7 @@ ${systemLog}
         text: String(o?.text || "Continue"),
         action_type: String(o?.action_type || "Neutral")
       })) : [],
+      game_events: raw.game_events,
       // Soft Data Handling
       reputation: raw.reputation,
       factions: raw.factions,
