@@ -212,8 +212,7 @@ export class GameService {
   private currentConfig?: GameConfig;
   private systemInstruction: string = "";
   private history: { role: string; content: string }[] = [];
-  private readonly TIMEOUT_MS: number = 45000; // 初始載入可能較久
-  private readonly MAX_HISTORY_LENGTH: number = 10;
+  private readonly TIMEOUT_MS: number = 45000;
   
   constructor() {}
 
@@ -235,16 +234,64 @@ export class GameService {
     return attempt(retries);
   }
 
-  async testConnection(config: GameConfig): Promise<string> {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) throw new Error("API_KEY_MISSING");
-    const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({ 
-      model: 'gemini-3-flash-preview', 
-      contents: 'Ping',
-      config: { maxOutputTokens: 5 }
+  private getGeminiApiKey(): string {
+    return process.env.API_KEY || process.env.GEMINI_API_KEY || '';
+  }
+
+  // --- OpenRouter Logic ---
+
+  private async callOpenRouter(messages: { role: string; content: string }[], config: GameConfig, jsonSchema?: string): Promise<string> {
+    if (!config.openRouterKey) throw new Error("OpenRouter API Key Missing");
+    
+    // Append strict JSON instruction if schema is provided (since not all OR models support response_format: json_object well)
+    const finalMessages = [...messages];
+    if (jsonSchema) {
+        finalMessages[0].content += `\n\n[IMPORTANT] You MUST respond with valid JSON matching this schema:\n${jsonSchema}`;
+    }
+
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${config.openRouterKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: config.openRouterModel || "anthropic/claude-3.5-sonnet",
+        messages: finalMessages,
+        response_format: { type: "json_object" } // Hint for models that support it
+      })
     });
-    return `Gemini 3 Flash 在線`;
+
+    if (!response.ok) {
+        const errorBody = await response.text();
+        throw new Error(`OpenRouter Error: ${response.statusText} - ${errorBody}`);
+    }
+
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content || "{}";
+  }
+
+  // --- Main Methods ---
+
+  async testConnection(config: GameConfig): Promise<string> {
+    if (config.provider === 'OPENROUTER') {
+        const msg = await this.callOpenRouter(
+            [{ role: 'user', content: 'Ping. Reply with "OpenRouter Online".' }],
+            config
+        );
+        return msg;
+    } else {
+        const apiKey = this.getGeminiApiKey();
+        if (!apiKey) throw new Error("Gemini API Key Missing");
+        
+        const ai = new GoogleGenAI({ apiKey });
+        const response = await ai.models.generateContent({ 
+          model: 'gemini-3-flash-preview', 
+          contents: 'Ping',
+          config: { maxOutputTokens: 5 }
+        });
+        return `Gemini 3 Flash 在線`;
+    }
   }
 
   async startSession(playerName: string, faction: FactionDetails, profile: PlayerProfile, config: GameConfig): Promise<void> {
@@ -274,25 +321,47 @@ ${systemLog}
 [REQ]
 ${specialRequests}
 `;
+    let responseText = "{}";
 
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-    const geminiContents = this.history.map(msg => ({
-      role: msg.role === 'user' ? 'user' : 'model',
-      parts: [{ text: msg.content }]
-    }));
-    geminiContents.push({ role: 'user', parts: [{ text: contextPrompt }] });
+    if (this.currentConfig?.provider === 'OPENROUTER') {
+        // Prepare messages for OpenRouter (System + History + User)
+        const messages = [
+            { role: "system", content: this.systemInstruction },
+            ...this.history.map(m => ({ role: m.role === 'model' ? 'assistant' : 'user', content: m.content })),
+            { role: "user", content: contextPrompt }
+        ];
 
-    const response = await this.withTimeout(ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      config: {
-        systemInstruction: this.systemInstruction,
-        responseMimeType: "application/json",
-        responseSchema: narrativeSchema,
-      },
-      contents: geminiContents
-    })) as GenerateContentResponse;
+        // Manually stringify the schema for OpenRouter prompt injection
+        const schemaString = JSON.stringify(narrativeSchema, null, 2);
+        
+        responseText = await this.withTimeout(
+            this.callOpenRouter(messages, this.currentConfig, schemaString)
+        );
 
-    const responseText = response.text || "{}";
+    } else {
+        // Standard Gemini Flow
+        const apiKey = this.getGeminiApiKey();
+        const ai = new GoogleGenAI({ apiKey });
+        
+        const geminiContents = this.history.map(msg => ({
+          role: msg.role === 'user' ? 'user' : 'model',
+          parts: [{ text: msg.content }]
+        }));
+        geminiContents.push({ role: 'user', parts: [{ text: contextPrompt }] });
+
+        const response = await this.withTimeout(ai.models.generateContent({
+          model: 'gemini-3-flash-preview',
+          config: {
+            systemInstruction: this.systemInstruction,
+            responseMimeType: "application/json",
+            responseSchema: narrativeSchema,
+          },
+          contents: geminiContents
+        })) as GenerateContentResponse;
+
+        responseText = response.text || "{}";
+    }
+
     const parsed = this.parseResponse(responseText);
     
     this.history.push({ role: 'user', content: contextPrompt });
@@ -322,7 +391,8 @@ ${specialRequests}
         shop: raw.shop || null
       };
     } catch (e) {
-      throw new Error("神經訊號解析失敗。");
+      console.error("JSON Parse Error:", e, "Raw Text:", text);
+      throw new Error("神經訊號解析失敗 (JSON Error)");
     }
   }
 }

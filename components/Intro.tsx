@@ -31,15 +31,33 @@ export const Intro: React.FC<IntroProps> = ({ onStart, isLoading }) => {
   const [isGeneratingAvatar, setIsGeneratingAvatar] = useState(false);
 
   useEffect(() => {
-    if (window.aistudio) {
-      window.aistudio.hasSelectedApiKey().then(setHasGeminiKey);
+    // Automatic Environment Detection for Gemini
+    const envKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+    
+    if (envKey) {
+      console.log("System identity check: Environment Key Detected.");
+      setHasGeminiKey(true);
+      // Only auto-skip if default provider is Gemini
+      if (provider === 'GEMINI') {
+          setActiveTab('IDENTITY');
+      }
+    } else if (window.aistudio) {
+      window.aistudio.hasSelectedApiKey().then((hasKey) => {
+        if (hasKey) {
+            setHasGeminiKey(true);
+            if (provider === 'GEMINI') {
+                setActiveTab('IDENTITY');
+            }
+        }
+      });
     }
-  }, []);
+  }, [provider]);
 
   const handleSelectGeminiKey = async () => {
     if (window.aistudio) {
       await window.aistudio.openSelectKey();
       setHasGeminiKey(true);
+      setActiveTab('IDENTITY');
     }
   };
 
@@ -79,7 +97,7 @@ export const Intro: React.FC<IntroProps> = ({ onStart, isLoading }) => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-void-black text-white font-sans overflow-y-auto relative">
-      {/* Loading Overlay within Intro during initial setup */}
+      {/* Loading Overlay */}
       {isLoading && (
           <div className="absolute inset-0 z-[100] bg-black/90 flex flex-col items-center justify-center text-center p-10 backdrop-blur-md">
               <div className="w-32 h-32 border-4 border-neon-blue border-t-transparent rounded-full animate-spin mb-8 shadow-[0_0_30px_rgba(0,243,255,0.3)]"></div>
@@ -110,19 +128,69 @@ export const Intro: React.FC<IntroProps> = ({ onStart, isLoading }) => {
             <div className="flex-1 overflow-y-auto custom-scrollbar pr-4">
                 {activeTab === 'AUTH' && (
                     <div className="space-y-6 animate-fade-in">
-                        <div className="bg-white/5 border border-neon-blue/20 p-6 rounded text-center space-y-4">
-                            <p className="text-xs text-gray-400">系統核心將使用 Gemini 3 Flash Preview 進行決策與敘事生成。</p>
-                            <button onClick={handleSelectGeminiKey} className={`px-6 py-3 border rounded font-mono text-sm tracking-widest transition-all ${hasGeminiKey ? 'border-neon-green text-neon-green bg-neon-green/10' : 'border-neon-blue text-neon-blue hover:bg-neon-blue hover:text-black'}`}>
-                                {hasGeminiKey ? '[ 金鑰已就緒 ]' : '[ 選擇 API 金鑰 ]'}
+                        
+                        {/* Provider Toggle */}
+                        <div className="flex gap-4 p-1 bg-white/5 rounded border border-white/10">
+                            <button 
+                                onClick={() => setProvider('GEMINI')} 
+                                className={`flex-1 py-2 text-sm font-bold tracking-widest transition-all ${provider === 'GEMINI' ? 'bg-neon-blue text-black shadow-[0_0_10px_rgba(0,243,255,0.3)]' : 'text-gray-500 hover:text-white'}`}
+                            >
+                                GOOGLE GEMINI
                             </button>
-                            <div className="text-[9px] text-gray-600">
-                                註：此過程完全安全，金鑰僅儲存於本地會話中。
-                            </div>
+                            <button 
+                                onClick={() => setProvider('OPENROUTER')} 
+                                className={`flex-1 py-2 text-sm font-bold tracking-widest transition-all ${provider === 'OPENROUTER' ? 'bg-neon-green text-black shadow-[0_0_10px_rgba(10,255,10,0.3)]' : 'text-gray-500 hover:text-white'}`}
+                            >
+                                OPENROUTER
+                            </button>
                         </div>
+
+                        {provider === 'GEMINI' ? (
+                            <div className="bg-white/5 border border-neon-blue/20 p-6 rounded text-center space-y-4">
+                                <p className="text-xs text-gray-400">系統核心已鎖定使用 Gemini 3 Flash Preview。</p>
+                                
+                                {hasGeminiKey ? (
+                                    <div className="p-3 bg-neon-green/10 border border-neon-green/50 text-neon-green text-sm font-mono tracking-widest rounded">
+                                        [ 環境變數已偵測 - 金鑰就緒 ]
+                                    </div>
+                                ) : (
+                                    <button onClick={handleSelectGeminiKey} className="px-6 py-3 border border-neon-blue text-neon-blue hover:bg-neon-blue hover:text-black rounded font-mono text-sm tracking-widest transition-all">
+                                        [ 選擇 / 重新輸入 API 金鑰 ]
+                                    </button>
+                                )}
+                                <div className="text-[9px] text-gray-600">
+                                    註：金鑰由 Google AI Studio 環境變數自動注入。
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="bg-white/5 border border-neon-green/20 p-6 rounded space-y-4">
+                                <div>
+                                    <label className="block text-xs text-neon-green font-mono mb-2">OPENROUTER API KEY</label>
+                                    <input 
+                                        type="password"
+                                        value={openRouterKey} 
+                                        onChange={e => setOpenRouterKey(e.target.value)} 
+                                        className="w-full bg-black border border-neon-green/30 p-3 text-sm outline-none focus:border-neon-green font-mono text-white" 
+                                        placeholder="sk-or-v1-..." 
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs text-neon-green font-mono mb-2">MODEL ID</label>
+                                    <input 
+                                        type="text"
+                                        value={openRouterModel} 
+                                        onChange={e => setOpenRouterModel(e.target.value)} 
+                                        className="w-full bg-black border border-neon-green/30 p-3 text-sm outline-none focus:border-neon-green font-mono text-white" 
+                                        placeholder="e.g. anthropic/claude-3.5-sonnet" 
+                                    />
+                                    <div className="text-[9px] text-gray-500 mt-1">推薦使用具備長文本與 JSON 輸出能力的模型 (如 Claude 3.5, GPT-4o)。</div>
+                                </div>
+                            </div>
+                        )}
 
                         <div className="flex flex-col gap-3">
                             <button onClick={handleTestConnection} className="w-full py-3 border border-white/20 text-xs font-mono uppercase tracking-widest hover:bg-white/5">
-                                [ 驗證神經鏈接 ]
+                                [ 執行連線診斷 (TEST CONNECTION) ]
                             </button>
                             {testStatus.msg && (
                                 <div className={`text-[10px] p-2 font-mono text-center ${testStatus.type === 'error' ? 'text-neon-red' : testStatus.type === 'success' ? 'text-neon-green' : 'text-neon-blue animate-pulse'}`}>
