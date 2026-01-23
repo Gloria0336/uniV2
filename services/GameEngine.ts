@@ -1,6 +1,7 @@
 
 import { GameState, GameEvents, Skill, ActionCategory, ShopItem, GameOption, CheckDifficulty } from '../types';
 import { CONSTANTS, LOCATIONS, ITEMS } from '../data/rules';
+import { createSkill } from '../data/skills';
 
 const TIMELINE: Record<number, string> = {
   3: "【世界事件】火星奧林帕斯山礦區爆發大規模罷工。",
@@ -19,11 +20,8 @@ const DIFFICULTY_MODIFIER: Record<string, number> = {
   'EXTREME': -40
 };
 
-const INITIAL_SKILLS: Skill[] = [
-    { id: 'basic_hacking', name: '基礎駭入', level: 1, maxLevel: 5, description: '解鎖電子鎖。', type: 'TECH', progress: 0 },
-    { id: 'kinetic_weapons', name: '動能武器', level: 1, maxLevel: 5, description: '使用槍械。', type: 'INNATE', progress: 0 },
-    { id: 'persuasion', name: '談判技巧', level: 1, maxLevel: 5, description: '獲取優惠。', type: 'LEADERSHIP', progress: 0 }
-];
+// 預設技能不再寫死，而是嘗試從 DB 獲取，若失敗則保留 Fallback
+const DEFAULT_SKILL_IDS = ['basic_hacking', 'kinetic_weapons', 'persuasion'];
 
 export class GameEngine {
   private state: GameState;
@@ -35,8 +33,14 @@ export class GameEngine {
     if (this.state.interaction === undefined) {
       this.state.interaction = { targetName: null, status: 'NONE' };
     }
+    
+    // 初始化技能邏輯重構
     if (!this.state.skills || this.state.skills.length === 0) {
-        this.state.skills = JSON.parse(JSON.stringify(INITIAL_SKILLS));
+        this.state.skills = [];
+        DEFAULT_SKILL_IDS.forEach(id => {
+            const skill = createSkill(id);
+            if (skill) this.state.skills.push(skill);
+        });
     }
   }
 
@@ -45,12 +49,28 @@ export class GameEngine {
   }
 
   public setSkills(skills: Skill[]): void {
-      this.state.skills = skills.map(s => ({
-          ...s,
-          progress: s.progress ?? 0,
-          level: s.level ?? 1,
-          maxLevel: s.maxLevel ?? 5
-      }));
+      // 嘗試標準化傳入的技能
+      this.state.skills = [];
+      skills.forEach(rawSkill => {
+          // 優先嘗試用 ID 或 Name 從資料庫重建標準技能物件
+          const dbSkill = createSkill(rawSkill.id) || createSkill(rawSkill.name);
+          if (dbSkill) {
+              // 保留傳入的等級與進度，但使用資料庫的描述與元數據
+              this.state.skills.push({
+                  ...dbSkill,
+                  level: rawSkill.level ?? 1,
+                  progress: rawSkill.progress ?? 0
+              });
+          } else {
+              // 若資料庫無此技能，則使用傳入的原始數據 (Fallback)
+              this.state.skills.push({
+                  ...rawSkill,
+                  progress: rawSkill.progress ?? 0,
+                  level: rawSkill.level ?? 1,
+                  maxLevel: rawSkill.maxLevel ?? 5
+              });
+          }
+      });
   }
 
   private advanceTurn(): string | null {
@@ -96,7 +116,6 @@ export class GameEngine {
              if (key in this.state.factions) {
                  // @ts-ignore
                  this.state.factions[key] += val;
-                 // 移除聲望變化的日誌顯示，僅在後台數值變動
              }
         }
     }
@@ -105,10 +124,32 @@ export class GameEngine {
         this.state.inventory.push(events.new_item);
         logs.push(`[SYSTEM] 獲得物品: ${events.new_item}`);
     }
+    
+    // 標準化新技能獲取邏輯
     if (events.new_skill) {
-        const existingSkill = this.state.skills.find(s => s.name === events.new_skill!.name);
-        if (!existingSkill) {
-            const skill: Skill = {
+        // 1. 嘗試從 DB 建立標準技能 (優先用 id 查，沒有則用 name)
+        let skill = createSkill(events.new_skill.name);
+        
+        // 若 AI 給的物件有 id 且 name 查不到，嘗試用 id 查
+        // @ts-ignore (兼容 AI 可能傳回 id 的情況)
+        if (!skill && events.new_skill.id) {
+             // @ts-ignore
+             skill = createSkill(events.new_skill.id);
+        }
+
+        if (skill) {
+            // 檢查是否已擁有
+            const existing = this.state.skills.find(s => s.id === skill!.id);
+            if (!existing) {
+                this.state.skills.push(skill);
+                logs.push(`[SYSTEM] 💡 領悟新技能: ${skill.name} (ID: ${skill.id})`);
+            } else {
+                logs.push(`[SYSTEM] 技能熟練度提升: ${skill.name}`);
+                // 這裡未來可以加熟練度邏輯
+            }
+        } else {
+            // Fallback: 如果 DB 找不到，則使用 AI 提供的原始數據 (防止報錯，但標記為非標準)
+            const fallbackSkill: Skill = {
                 id: events.new_skill.name.toLowerCase().replace(/\s/g, '_'),
                 name: events.new_skill.name,
                 level: 1,
@@ -117,8 +158,11 @@ export class GameEngine {
                 type: events.new_skill.type || 'INNATE',
                 progress: 0
             };
-            this.state.skills.push(skill);
-            logs.push(`[SYSTEM] 💡 領悟新技能: ${skill.name}`);
+            const existing = this.state.skills.find(s => s.name === fallbackSkill.name);
+            if (!existing) {
+                this.state.skills.push(fallbackSkill);
+                logs.push(`[SYSTEM] 💡 領悟特殊技能: ${fallbackSkill.name}`);
+            }
         }
     }
     return logs;
@@ -200,7 +244,14 @@ export class GameEngine {
   }
 
   private calculateSuccessChance(skillId: string, difficulty: CheckDifficulty): number {
-      const skill = this.state.skills.find(s => s.id === skillId || s.name === skillId || s.id.includes(skillId));
+      // 增強查找邏輯：支援 ID 或 Name
+      const skill = this.state.skills.find(s => 
+          s.id === skillId || 
+          s.name === skillId || 
+          s.id.includes(skillId) ||
+          (createSkill(skillId) && s.id === createSkill(skillId)!.id) // 嘗試正規化 ID 後查找
+      );
+      
       const level = skill ? skill.level : 0;
       const modifier = DIFFICULTY_MODIFIER[difficulty] || 0;
       // Formula: Base 30% + (Level * 5) + Modifier

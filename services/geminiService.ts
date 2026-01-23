@@ -1,6 +1,7 @@
 
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { getSystemLore } from '../data/lore';
+import { getSkillListForPrompt } from '../data/skills';
 import { 
   FactionDetails, 
   PlayerProfile, 
@@ -79,7 +80,9 @@ const narrativeSchema = {
         new_item: { type: Type.STRING },
         new_skill: {
           type: Type.OBJECT,
+          description: "Grant a new skill. MUST choose ID from the provided Skill Database.",
           properties: {
+            id: { type: Type.STRING, description: "The ID of the skill from the database (e.g., 'basic_hacking')." },
             name: { type: Type.STRING },
             type: { type: Type.STRING },
             description: { type: Type.STRING }
@@ -286,6 +289,7 @@ export class GameService {
     this.currentConfig = config;
     
     const loreData = getSystemLore(1);
+    const skillList = getSkillListForPrompt();
 
     this.systemInstruction = `
 ${loreData}
@@ -295,6 +299,12 @@ ${loreData}
 1. **塑造身分**: 賦予玩家一個具體的「職業/身分」(generated_identity)。
 2. **決定起點**: 根據身分，將其安置在合理的「起始地點」(starting_location)。
 3. **分發天賦**: 在第一次回應的 \`game_events.initial_skills\` 中，提供 3 個與該職業高度相關的初始技能。
+
+【標準技能庫】
+在發放 \`initial_skills\` 或 \`new_skill\` 時，**必須**從以下列表中選擇，並填入正確的 \`id\`。
+若玩家行為符合某技能特徵，請優先使用此列表中的技能。
+
+${skillList}
 
 【開場指南】
 不要只是說「歡迎來到 3150 年」。請描述一個具體的、感官強烈的場景，讓玩家直接以該職業身分融入。
