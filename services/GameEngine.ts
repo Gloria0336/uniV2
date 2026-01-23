@@ -1,5 +1,5 @@
 
-import { GameState, GameEvents, Skill, ActionCategory, ShopItem } from '../types';
+import { GameState, GameEvents, Skill, ActionCategory, ShopItem, GameOption, CheckDifficulty } from '../types';
 import { CONSTANTS, LOCATIONS, ITEMS } from '../data/rules';
 
 const TIMELINE: Record<number, string> = {
@@ -9,6 +9,14 @@ const TIMELINE: Record<number, string> = {
   15: "【戰爭陰影】地球艦隊向土星環集結，局勢升級。",
   20: "【異象】各地傳出靈能者失控事件。",
   30: "【全面衝突】EUG 正式對自由民宣戰。"
+};
+
+const DIFFICULTY_MODIFIER: Record<string, number> = {
+  'VERY_EASY': 30,
+  'EASY': 10,
+  'NORMAL': 0,
+  'HARD': -20,
+  'EXTREME': -40
 };
 
 const INITIAL_SKILLS: Skill[] = [
@@ -191,17 +199,44 @@ export class GameEngine {
     }
   }
 
-  public processAction(type: string, payload: any, ap_cost: number = 0): string {
-    if (ap_cost > 0 && this.state.actionPoints < ap_cost) {
-      throw new Error(`體力透支，無法執行此高強度行動 (需要 ${ap_cost} AP，當前僅剩 ${this.state.actionPoints})。建議進行休整 (REST)。`);
+  private calculateSuccessChance(skillId: string, difficulty: CheckDifficulty): number {
+      const skill = this.state.skills.find(s => s.id === skillId || s.name === skillId || s.id.includes(skillId));
+      const level = skill ? skill.level : 0;
+      const modifier = DIFFICULTY_MODIFIER[difficulty] || 0;
+      // Formula: Base 30% + (Level * 5) + Modifier
+      let chance = 30 + (level * 5) + modifier;
+      return Math.max(0, Math.min(100, chance));
+  }
+
+  public processAction(input: string | { type: string, payload: any }, option?: Partial<GameOption>): string {
+    // 1. Determine Action Type and Cost
+    let actionType: string = 'TALK';
+    let apCost: number = 0;
+    let payload: any = input;
+
+    if (typeof input === 'object' && input.type) {
+        // Handle complex payload (e.g., TRADE from ShopModal)
+        actionType = input.type;
+        payload = input.payload || input;
+    } else {
+        // Handle standard text input or option click
+        actionType = option?.action_type || 'TALK';
+        apCost = option?.ap_cost || 0;
     }
 
-    this.state.actionPoints -= ap_cost;
-    
-    const command = String(payload);
-    if (['MOVE_SHORT', 'MOVE_LONG', 'REST'].includes(type)) {
+    // 2. Check AP (Cost 0 actions pass automatically)
+    if (apCost > 0 && this.state.actionPoints < apCost) {
+      throw new Error(`體力透支，無法執行此高強度行動 (需要 ${apCost} AP，當前僅剩 ${this.state.actionPoints})。建議進行休整 (REST)。`);
+    }
+
+    // 3. Deduct AP
+    this.state.actionPoints -= apCost;
+
+    // 4. Update Interaction State
+    const command = typeof input === 'string' ? input : JSON.stringify(input);
+    if (['MOVE_SHORT', 'MOVE_LONG', 'REST'].includes(actionType)) {
       this.state.interaction = { targetName: null, status: 'NONE' };
-    } else if (['TALK', 'COMBAT', 'ACTION'].includes(type)) {
+    } else if (['TALK', 'COMBAT', 'ACTION'].includes(actionType)) {
       const targetMatch = command.match(/(?:詢問|對著|向|攻擊|招募)\s*([^\s，。！？]+)/);
       if (targetMatch && targetMatch[1]) {
         this.state.interaction = { targetName: targetMatch[1], status: 'ACTIVE' };
@@ -211,10 +246,11 @@ export class GameEngine {
     let log = "";
     const plotEvent = this.advanceTurn();
 
+    // 5. Execute Action Logic
     try {
-      switch (type) {
+      switch (actionType) {
         case 'MOVE_LONG':
-          log = this.handleTravel(payload);
+          log = this.handleTravel(command);
           break;
         case 'REST':
           log = this.handleRest(1);
@@ -223,10 +259,27 @@ export class GameEngine {
           log = this.handleTrade(payload);
           break;
         default:
-          log = `[SYSTEM] 執行行動：${type}\n- 指令內容：${typeof payload === 'object' ? JSON.stringify(payload) : payload}\n- 消耗 AP：${ap_cost}`;
+          log = `[SYSTEM] 執行行動：${actionType}\n- 指令內容：${command}\n- 消耗 AP：${apCost}`;
       }
+
+      // 6. Skill Check Logic
+      if (option && option.requiredSkill && option.difficulty) {
+          const skillId = option.requiredSkill;
+          const chance = this.calculateSuccessChance(skillId, option.difficulty);
+          const roll = Math.floor(Math.random() * 100) + 1;
+          const isSuccess = roll <= chance;
+          const resultText = isSuccess ? "成功" : "失敗";
+          
+          // Try to find readable skill name
+          const skill = this.state.skills.find(s => s.id === skillId || s.name === skillId || s.id.includes(skillId));
+          const skillDisplayName = skill ? `${skill.name} (LV.${skill.level})` : `${skillId} (LV.0)`;
+
+          const checkLog = `\n\n[SYSTEM] 技能檢定(${skillDisplayName}): ${resultText} (骰出 ${roll} vs 目標 ${chance}%)\n結果：${isSuccess ? '行動順利執行' : '觸發失敗懲罰或負面後果'}。`;
+          log += checkLog;
+      }
+
     } catch (error: any) {
-      this.state.actionPoints += ap_cost;
+      this.state.actionPoints += apCost; // Refund AP on error
       throw error;
     }
 

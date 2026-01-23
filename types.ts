@@ -159,12 +159,15 @@ export interface GameEvents {
 }
 
 export type ActionCategory = 'TALK' | 'MOVE_SHORT' | 'MOVE_LONG' | 'COMBAT' | 'ACTION' | 'REST' | 'TRADE';
+export type CheckDifficulty = 'VERY_EASY' | 'EASY' | 'NORMAL' | 'HARD' | 'EXTREME';
 
 export interface GameOption {
   id: number;
   text: string;
   action_type: ActionCategory;
   ap_cost: number;
+  requiredSkill?: string;      // 技能 ID，例如 'basic_hacking' (若為空則代表普通行動)
+  difficulty?: CheckDifficulty; // 檢定難度
 }
 
 export interface ChatMessage {

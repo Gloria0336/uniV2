@@ -210,17 +210,20 @@ const App: React.FC = () => {
     }));
     
     try {
-      let ap_cost = option?.ap_cost ?? 0;
-      let action_type = option?.action_type ?? 'TALK';
-
       // 關鍵字攔截：休息
-      // 如果玩家輸入包含休息相關詞彙，強制轉為 REST 行動，且通常不消耗 AP (或視為恢復 AP 的起手式)
+      let finalOption = option;
+
+      // 如果玩家手動輸入包含休息相關詞彙，建立一個臨時的 REST option
       if (/(休息|rest|修整|休整|睡覺)/i.test(userAction)) {
-          action_type = 'REST';
-          ap_cost = 0;
+          finalOption = {
+            id: -1,
+            text: userAction,
+            action_type: 'REST',
+            ap_cost: 0
+          };
       }
 
-      const systemLog = engineRef.current.processAction(action_type, userAction, ap_cost);
+      const systemLog = engineRef.current.processAction(userAction, finalOption);
       await processGameResponse(systemLog);
     } catch (error: any) {
       setGameState(prev => ({ 
@@ -234,7 +237,12 @@ const App: React.FC = () => {
   const handleBuyItem = async (item: ShopItem) => {
     if (!engineRef.current || gameState.isGameOver) return;
     try {
-        const systemLog = engineRef.current.processAction('TRADE', { item, action: 'BUY' }, 0);
+        // 使用更新後的 processAction 簽章：傳入物件 payload，並附帶基礎 option 結構以符合類型
+        const systemLog = engineRef.current.processAction(
+            { type: 'TRADE', payload: { item, action: 'BUY' } }, 
+            { action_type: 'TRADE', ap_cost: 0, id: 0, text: 'Buy' }
+        );
+        
         const updatedEngineState = engineRef.current.getState();
         const { history: _h, ...engineStateSafe } = updatedEngineState;
         setGameState(prev => ({
@@ -297,6 +305,11 @@ const App: React.FC = () => {
                     <span className={`ml-2 font-bold ${opt.ap_cost > 0 ? 'text-neon-red' : 'text-neon-green'}`}>
                         {opt.ap_cost > 0 ? `(AP -${opt.ap_cost})` : `(免費)`}
                     </span>
+                    {opt.requiredSkill && (
+                        <span className="ml-2 text-[10px] text-purple-400 border border-purple-500/50 px-1 rounded">
+                           🎲 {opt.difficulty || 'NORMAL'}
+                        </span>
+                    )}
                   </button>
                 ))}
               </div>

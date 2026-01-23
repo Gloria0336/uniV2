@@ -47,6 +47,14 @@ const narrativeSchema = {
           },
           ap_cost: {
             type: Type.INTEGER
+          },
+          requiredSkill: { 
+            type: Type.STRING, 
+            description: "Optional. The ID of the skill required (e.g., 'basic_hacking', 'persuasion'). Empty if no skill needed." 
+          },
+          difficulty: {
+            type: Type.STRING,
+            description: "Optional. Level: VERY_EASY, EASY, NORMAL, HARD, EXTREME"
           }
         },
         required: ["id", "text", "action_type", "ap_cost"]
@@ -296,6 +304,11 @@ ${loreData}
 1. **選項引導**: 每個選項 (GameOption) 必須包含 'action_type' 與 'ap_cost'。
 2. **語系限制**: 嚴禁使用英文回傳描述，除非是專業術語。
 3. **勢力動態**: 你可以根據劇情進展更新各大勢力的成員數量與全球影響力 (world_factions)。
+
+【技能檢定規則】
+當玩家想要執行有風險的行動（如駭入、談判、偷竊、戰鬥特技）時，必須在 options 中指定 requiredSkill 與 difficulty。
+不要自己判定成功或失敗，請等待下一回合系統回傳的 [SYSTEM] 技能檢定結果，再根據結果描述劇情。
+若系統回傳「失敗」，請描述負面後果（受傷、關係惡化、被發現）；若「成功」，則描述順利完成。
 
 玩家資料：
 名稱: ${playerName}
