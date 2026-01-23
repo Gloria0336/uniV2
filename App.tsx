@@ -236,9 +236,12 @@ const App: React.FC = () => {
   const handleAction = async (text: string, option?: GameOption) => {
     if (!text.trim() || isProcessing || gameState.isGameOver || !engineRef.current) return;
 
+    // 1. 備份當前的選項，以防出錯
+    const backupOptions = gameState.currentOptions;
+
     const userAction = text.trim();
     
-    // 1. 建立預設的行動參數 (針對手動輸入)
+    // 2. 建立預設的行動參數 (針對手動輸入)
     let finalOption: Partial<GameOption> = option || {
         id: -1,
         text: userAction,
@@ -247,7 +250,7 @@ const App: React.FC = () => {
         difficulty: 'NORMAL'
     };
 
-    // 2. 關鍵字攔截：如果是休息指令，成本改為 0
+    // 3. 關鍵字攔截：如果是休息指令，成本改為 0
     if (/(休息|rest|修整|休整|睡覺|sleep)/i.test(userAction)) {
           finalOption = {
             id: -1,
@@ -257,7 +260,7 @@ const App: React.FC = () => {
           };
     }
 
-    // 3. Client-side Check: AP 耗盡阻擋
+    // 4. Client-side Check: AP 耗盡阻擋
     if (finalOption.action_type !== 'REST' && gameState.actionPoints <= 0) {
         setGameState(prev => ({ 
             ...prev, 
@@ -284,9 +287,11 @@ const App: React.FC = () => {
       const systemLog = engineRef.current.processAction(userAction, finalOption);
       await processGameResponse(systemLog);
     } catch (error: any) {
+      // 5. 發生錯誤時，除了顯示錯誤訊息，還要還原 backupOptions
       setGameState(prev => ({ 
           ...prev, 
-          history: [...prev.history, { role: 'system' as const, content: `[錯誤]: ${error.message}`, timestamp: Date.now() }].slice(-MAX_HISTORY_LEN) 
+          currentOptions: backupOptions, // <--- 關鍵修正：還原選項
+          history: [...prev.history, { role: 'system' as const, content: `[系統錯誤]: ${error.message} (已還原操作面板)`, timestamp: Date.now() }].slice(-MAX_HISTORY_LEN) 
       }));
       setIsProcessing(false);
     }

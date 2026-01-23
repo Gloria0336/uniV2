@@ -9,25 +9,83 @@ interface IntroProps {
 }
 
 const RANDOM_PERSONALITIES = [
+// === 專業與硬派 ===
   "冷酷無情的利己主義者，只在乎任務報酬。",
   "尋求真理的紅教叛徒，對神秘學有獨到見解。",
   "崇尚混亂的自由無政府主義者，喜歡破壞舊秩序。",
   "絕對理性的數據分析師，缺乏同理心但判斷精準。",
   "富有同情心的前戰地醫護，無法見死不救。",
   "偏執的科技崇拜者，認為肉體是軟弱的根源。",
-  "追求刺激的虛空行者，哪裡有危險就往哪去。",
-  "沉默寡言的賞金獵人，信奉以牙還牙。"
+  "沉默寡言的賞金獵人，信奉以牙還牙。",
+  "專精於古董硬體修復的考古駭客，對現代科技嗤之以鼻。",
+  "只接高難度手術的黑市牙醫，擁有令人不安的收藏癖。",
+  "專門處理靈能污染現場的清潔專家，精神狀態極度不穩定。",
+
+  // === 平凡與市井小民 ===
+  "疲憊的企業基層員工，只想安穩活到退休。",
+  "樂觀的街頭小販，對各路八卦瞭若指掌。",
+  "負債累累的賭徒，為了還債願意冒任何風險。",
+  "單純的重機械維修工，比起人類更喜歡跟機器相處。",
+  "憤世嫉俗的失業記者，渴望挖掘被掩蓋的真相。",
+  "謹慎的地下快遞員，信奉「不問、不看、不說」的生存哲學。",
+  "剛來到大城市的鄉巴佬，對一切高科技都感到驚奇與恐懼。",
+  "被裁員的前警備隊員，對體制感到徹底失望。",
+  "充滿母性光輝的孤兒院院長，為了孩子們可以變得無比強悍。",
+
+  // === 特殊與怪異 ===
+  "聲稱自己被外星人綁架過的陰謀論者，隨身攜帶鋁箔紙帽。",
+  "擁有多重人格的情報販子，每個人格都有不同專長。",
+  "因為實驗失敗而能夠看見無線電波的科學家，總是對著空氣說話。",
+  "來自火星殖民地，不適應地球重力的流亡貴族。",
+  "堅信自己是個 NPC 的覺醒者，總是在尋找「玩家」。",
+  "患有資訊成癮症，一分鐘不連上網路就會恐慌發作。",
+
+  // === 搞笑與荒謬 ===
+  "堅信地球是平的，即使他現在就住在太空站裡。",
+  "把所有積蓄都拿去買彩券的無可救藥樂觀主義者。",
+  "因為太怕痛所以把防禦點滿的膽小保鑣。",
+  "只喝特定年份機油的美食家，對人類食物感到噁心。",
+  "為了逃避寫稿而跑來當傭兵的網路小說家。",
+  "隨身帶著一盆寵物仙人掌，並堅持它會說話。",
+  "自稱是時空旅人，但預言的都是雞毛蒜皮的小事（例如明天的早餐）。"
 ];
 
 const RANDOM_APPEARANCES = [
+// === 賽博龐克與戰鬥風格 ===
   "左眼替換為軍用級紅色義眼，臉頰有明显的散熱排氣孔。穿著舊式飛行夾克。",
   "右臂完全機械化，手指是各種精密工具。身上沾滿了機油與鐵鏽的味道。",
   "皮膚蒼白如紙，頸部後方有顯眼的數據接口插槽。穿著漆黑的高領風衣。",
   "全身覆蓋著廉價的鉻金屬塗層，穿著霓虹色的透明塑膠雨衣。",
-  "留著雜亂的粉色龐克短髮，身上掛滿了各種舊時代的幸運符和硬幣。",
-  "穿著筆挺的聯合政府制服，但總是戴著一個破碎的防毒面具遮住下半臉。",
+  "半邊臉被嚴重燒傷，用粗糙的金屬補丁遮蓋，眼神兇狠且充滿戒備。",
+  "穿著全套深黑色戰術裝備，臉上戴著無法取下的軍用級夜視鏡。",
+  "背部植入了巨大的機械脊椎，連接到四肢的外骨骼支架上。",
+
+  // === 平凡生活風格 ===
+  "穿著褪色的聯合礦業工作服，口袋裡塞滿了各種維修單據和油膩的抹布。",
+  "外表平庸的中年人，穿著廉價的合成纖維西裝，手裡總是提著一個公事包。",
+  "戴著一副厚重的光學眼鏡，穿著舒適的居家毛衣，看起來毫無威脅性。",
+  "穿著印有俗氣廣告標語的便利商店制服，眼神中透露著長期的睡眠不足。",
+  "脖子上掛著褪色的宗教護身符，穿著層層疊疊的舊衣物，像個流浪漢。",
+  "穿著充滿口袋的戰術背心，但裡面裝的都是糖果和急救藥品，而非彈藥。",
+  "一身運動裝扮，脖子上掛著高品質的耳機，隨著聽不到的音樂輕輕晃動。",
+  "穿著老式的皮圍裙，雙手布滿了細小的傷痕和厚繭。",
+
+  // === 特殊變異與科技 ===
   "看似完美的仿生人外表，但在情緒激動時，皮膚下會透出不穩定的藍光。",
-  "半邊臉被嚴重燒傷，用粗糙的金屬補丁遮蓋，眼神兇狠且充滿戒備。"
+  "皮膚呈現半透明狀，可以隱約看見底下的血管與發光的植入物。",
+  "頭部被替換成了一台老式映像管電視，顯示著當前的心情表情符號。",
+  "左半邊身體完全是植物纖維與電路交織而成的生化義肢。",
+  "沒有頭髮，頭皮上佈滿了整齊的條碼刺青和二維碼。",
+  "聲音是合成的電子音，喉嚨處安裝了一個發光的揚聲器。",
+
+  // === 搞笑與搞怪 ===
+  "穿著粉紅色的蓬蓬裙，但背著一把與服裝極不搭調的重型雷射加農砲。",
+  "頭上戴著一個挖了洞的紙袋，上面用奇異筆寫著「帥哥」兩個字。",
+  "全身掛滿了會發出怪聲的橡膠雞，聲稱這是某種聲波防禦系統。",
+  "把交通錐當成帽子戴在頭上，並堅稱這是最新的防護力場產生器。",
+  "穿著布偶裝（看起來像是一隻巨大的太空倉鼠）不想脫下來。",
+  "為了省錢，把自己改造成了一台會走路的自動販賣機。",
+  "穿著一件寫著「我愛火星」的觀光客T恤，手裡拿著地圖一臉茫然。"
 ];
 
 export const Intro: React.FC<IntroProps> = ({ onStart, isLoading }) => {
@@ -96,12 +154,17 @@ export const Intro: React.FC<IntroProps> = ({ onStart, isLoading }) => {
 
   const handleGenerateAvatar = () => {
     setIsGeneratingAvatar(true);
-    const seed = `${name || 'explorer'}-${gender}-${appearance}-${personality}-${Math.floor(Math.random() * 1000)}`;
-    const newAvatar = `https://api.dicebear.com/9.x/bottts/svg?seed=${encodeURIComponent(seed)}&baseColor=00f3ff,3b82f6,ef4444&backgroundColor=050505`;
+    
+    // 構建與遊戲風格一致的 Prompt
+    const prompt = `cyberpunk character portrait, ${gender}, ${appearance}, ${personality}, sci-fi concept art, cinematic lighting, high detailed, 8k, seed-${Math.floor(Math.random() * 10000)}`;
+    
+    const newAvatar = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=512&height=512&nologo=true&model=turbo`;
+    
+    // 稍微延長 Loading 時間以配合圖片生成感受
     setTimeout(() => {
       setAvatarPreview(newAvatar);
       setIsGeneratingAvatar(false);
-    }, 1200);
+    }, 1500);
   };
 
   const handleRandomizeProfile = () => {
@@ -114,14 +177,17 @@ export const Intro: React.FC<IntroProps> = ({ onStart, isLoading }) => {
     setPersonality(newPersonality);
     setAppearance(newAppearance);
 
-    // Auto generate avatar for the random profile
     setIsGeneratingAvatar(true);
-    const seed = `${name || 'explorer'}-${newGender}-${newAppearance}-${newPersonality}-${Math.floor(Math.random() * 1000)}`;
-    const newAvatar = `https://api.dicebear.com/9.x/bottts/svg?seed=${encodeURIComponent(seed)}&baseColor=00f3ff,3b82f6,ef4444&backgroundColor=050505`;
+    
+    // 同樣使用 Pollinations 生成
+    const prompt = `cyberpunk character portrait, ${newGender}, ${newAppearance}, ${newPersonality}, sci-fi concept art, cinematic lighting, high detailed, 8k, seed-${Math.floor(Math.random() * 10000)}`;
+    
+    const newAvatar = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=512&height=512&nologo=true&model=turbo`;
+    
     setTimeout(() => {
       setAvatarPreview(newAvatar);
       setIsGeneratingAvatar(false);
-    }, 800);
+    }, 1500);
   };
 
   const handleStartClick = () => {
@@ -295,7 +361,7 @@ export const Intro: React.FC<IntroProps> = ({ onStart, isLoading }) => {
                         </div>
                         <div className="flex flex-col items-center justify-center bg-white/5 border border-white/10 rounded-lg p-4">
                             <div className="w-48 h-48 border-2 border-neon-blue/30 overflow-hidden bg-black relative shadow-[0_0_20px_rgba(0,243,255,0.1)]">
-                                {avatarPreview ? <img src={avatarPreview} className="w-full h-full object-contain" alt="Avatar" /> : <div className="w-full h-full flex items-center justify-center text-gray-700 text-[10px] font-mono">等待輸入...</div>}
+                                {avatarPreview ? <img src={avatarPreview} className="w-full h-full object-cover" alt="Avatar" /> : <div className="w-full h-full flex items-center justify-center text-gray-700 text-[10px] font-mono">等待輸入...</div>}
                                 <div className="absolute inset-0 bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.4)_50%)] bg-[length:100%_4px] pointer-events-none opacity-20"></div>
                             </div>
                         </div>

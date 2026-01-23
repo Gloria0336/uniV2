@@ -341,7 +341,8 @@ export class GameEngine {
     if (events.xp_gain) {
       this.state.experience += events.xp_gain;
       logs.push(`[SYSTEM] 獲得經驗值: ${events.xp_gain}`);
-      if (this.state.experience >= this.state.nextLevelXp) {
+      // 使用 while 確保經驗值足以連續升級
+      while (this.state.experience >= this.state.nextLevelXp) {
          this.state.level += 1;
          this.state.freeSkillPoints += 1;
          this.state.experience -= this.state.nextLevelXp;
