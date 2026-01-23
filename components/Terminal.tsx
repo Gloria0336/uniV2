@@ -29,10 +29,10 @@ export const Terminal: React.FC<TerminalProps> = ({ messages, isProcessing }) =>
             msg.role === 'user' ? 'items-end' : 'items-start'
           } animate-fade-in`}
         >
-          {msg.role === 'model' && msg.imagePrompt && (
+          {msg.role === 'model' && (msg.staticImage || msg.imagePrompt) && (
             <div className="max-w-[85%] md:max-w-[70%] mb-2 rounded-lg overflow-hidden border border-neon-blue/30 shadow-[0_0_15px_rgba(0,243,255,0.2)]">
               <img 
-                src={`https://image.pollinations.ai/prompt/${encodeURIComponent(msg.imagePrompt + " sci-fi concept art 8k")}?width=800&height=450&nologo=true`} 
+                src={msg.staticImage ? msg.staticImage : `https://image.pollinations.ai/prompt/${encodeURIComponent(msg.imagePrompt + " sci-fi concept art 8k")}?width=800&height=450&nologo=true`} 
                 alt="場景可視化"
                 className="w-full h-auto object-cover opacity-90 hover:opacity-100 transition-opacity"
                 loading="lazy"

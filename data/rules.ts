@@ -17,55 +17,62 @@ export const CONSTANTS = {
 };
 
 // 太陽系座標系統 (以地球為 0,0)
-export const LOCATIONS: Record<string, { x: number; y: number; name: string; factionId: FactionType; description: string }> = {
+export const LOCATIONS: Record<string, { x: number; y: number; name: string; factionId: FactionType; description: string; imageUrl?: string }> = {
   'Earth': { 
     x: 0, 
     y: 0, 
     name: '地球 (Earth)', 
     factionId: FactionType.EUG, 
-    description: '聯合政府首都，秩序與繁榮的象徵，但底層受到嚴密監控。' 
+    description: '聯合政府首都，秩序與繁榮的象徵，但底層受到嚴密監控。',
+    imageUrl: '/images/locations/earth_city.jpg'
   },
   'Luna': { 
     x: 10, 
     y: 10, 
     name: '月球 (Luna)', 
     factionId: FactionType.EUG, 
-    description: '主要的太空港與富人居住區，擁有最先進的醫療設施。' 
+    description: '主要的太空港與富人居住區，擁有最先進的醫療設施。',
+    imageUrl: '/images/locations/luna_base.jpg'
   },
   'Venus': { 
     x: -40, 
     y: 30, 
     name: '金星 (Venus)', 
     factionId: FactionType.FREE_PEOPLE, 
-    description: '惡劣環境下的工業殖民地，自由民的主要據點之一。' 
+    description: '惡劣環境下的工業殖民地，自由民的主要據點之一。',
+    imageUrl: '/images/locations/venus_colony.jpg'
   },
   'Mars': { 
     x: 60, 
     y: -20, 
     name: '火星 (Mars)', 
     factionId: FactionType.FREE_PEOPLE, 
-    description: '紅色星球，充滿了遺跡挖掘場與混亂的黑市。' 
+    description: '紅色星球，充滿了遺跡挖掘場與混亂的黑市。',
+    imageUrl: '/images/locations/mars_ruins.jpg'
   },
   'Belt': { 
     x: 100, 
     y: 80, 
     name: '小行星帶 (The Belt)', 
     factionId: FactionType.FREE_PEOPLE, 
-    description: '無法無天的邊境，海盜與走私客的天堂。' 
+    description: '無法無天的邊境，海盜與走私客的天堂。',
+    imageUrl: '/images/locations/belt_outpost.jpg'
   },
   'Jupiter': { 
     x: 180, 
     y: -60, 
     name: '木星 (Jupiter)', 
     factionId: FactionType.EUG, 
-    description: '巨大的氣體採集站，擁有強大的軌道防禦艦隊。' 
+    description: '巨大的氣體採集站，擁有強大的軌道防禦艦隊。',
+    imageUrl: '/images/locations/jupiter_station.jpg'
   },
   'Saturn': { 
     x: 240, 
     y: 120, 
     name: '土星 (Saturn)', 
     factionId: FactionType.RED_CULT, 
-    description: '紅教聖地，泰坦星上的神廟隱藏著古老的靈能秘密。' 
+    description: '紅教聖地，泰坦星上的神廟隱藏著古老的靈能秘密。',
+    imageUrl: '/images/locations/saturn_temple.jpg'
   }
 };
 

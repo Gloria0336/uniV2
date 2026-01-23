@@ -72,6 +72,7 @@ export interface ShopItem {
   description: string;
   price: number;
   type: 'ITEM' | 'INFO' | 'SERVICE' | 'UPGRADE';
+  imageUrl?: string; // New: 用於商店顯示圖片
 }
 
 export interface ShopData {
@@ -125,6 +126,7 @@ export interface Item {
   price: number;
   maxStack: number;
   icon?: string;
+  imageUrl?: string; // New: 用於背包與裝備顯示圖片
   
   // Equipment specific
   stats?: ItemStats;
@@ -253,6 +255,7 @@ export interface ChatMessage {
   content: string;
   timestamp: number;
   imagePrompt?: string;
+  staticImage?: string; // New: 優先顯示的靜態圖片路徑
   silent?: boolean;
 }
 

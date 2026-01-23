@@ -73,15 +73,22 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ inventory, onClo
                         {safeInventory.map((slot, idx) => {
                             const itemDef = getItemDef(slot.itemId);
                             const name = itemDef ? itemDef.name : slot.itemId;
+                            const icon = itemDef && itemDef.icon ? (itemDef.name.includes('靈能') ? '✦' : itemDef.name.includes('急救') ? '✚' : itemDef.icon) : '📦';
+                            const imageUrl = itemDef?.imageUrl;
+
                             return (
-                                <div key={idx} className="aspect-square border border-gray-800 bg-white/5 hover:border-neon-blue hover:bg-neon-blue/5 transition-all p-3 flex flex-col items-center justify-center text-center group cursor-default">
-                                    <div className="w-10 h-10 mb-2 border border-gray-700 flex items-center justify-center text-gray-400 group-hover:text-neon-blue group-hover:border-neon-blue transition-all">
-                                        {name.includes('靈能') ? '✦' : name.includes('急救') ? '✚' : '📦'}
+                                <div key={idx} className="aspect-square border border-gray-800 bg-white/5 hover:border-neon-blue hover:bg-neon-blue/5 transition-all p-3 flex flex-col items-center justify-center text-center group cursor-default relative overflow-hidden">
+                                    <div className="w-10 h-10 mb-2 flex items-center justify-center text-gray-400 group-hover:text-neon-blue transition-all">
+                                        {imageUrl ? (
+                                            <img src={imageUrl} alt={name} className="w-full h-full object-cover rounded border border-gray-700 group-hover:border-neon-blue" />
+                                        ) : (
+                                            <div className="text-2xl">{icon}</div>
+                                        )}
                                     </div>
-                                    <div className="text-[10px] font-bold text-gray-300 leading-tight group-hover:text-white">
+                                    <div className="text-[10px] font-bold text-gray-300 leading-tight group-hover:text-white z-10">
                                         {name} {slot.quantity > 1 ? `x${slot.quantity}` : ''}
                                     </div>
-                                    <div className="mt-auto text-[8px] text-gray-600 font-mono">#ID_{idx.toString().padStart(3, '0')}</div>
+                                    <div className="mt-auto text-[8px] text-gray-600 font-mono z-10">#ID_{idx.toString().padStart(3, '0')}</div>
                                 </div>
                             );
                         })}

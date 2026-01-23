@@ -12,6 +12,8 @@ import { SkillsPanel } from './components/SkillsPanel';
 import { TeamPanel } from './components/TeamPanel';
 import { ShopModal } from './components/ShopModal';
 import { InventoryModal } from './components/InventoryModal';
+import { LOCATIONS } from './data/rules';
+import { KEY_NPCS } from './data/lore/npcs';
 
 const MAX_HISTORY_LEN = 50;
 
@@ -170,11 +172,38 @@ const App: React.FC = () => {
       const { history: _h2, ...finalEngineStateSafe } = currentEngineState;
 
       setGameState(prev => {
+        // --- 靜態圖片注入邏輯 Start ---
+        let staticImageToUse: string | undefined = undefined;
+
+        // 1. 優先檢查是否與 NPC 互動中
+        if (currentEngineState.interaction.status === 'ACTIVE' && currentEngineState.interaction.targetName) {
+            const npc = KEY_NPCS.find(n => n.name === currentEngineState.interaction.targetName);
+            if (npc?.imageUrl) {
+                staticImageToUse = npc.imageUrl;
+            }
+        }
+
+        // 2. 若無 NPC，則檢查當前地點 (Location)
+        if (!staticImageToUse) {
+            const locName = currentEngineState.location;
+            // 模糊比對 LOCATIONS 的 key 或 name
+            const locKey = Object.keys(LOCATIONS).find(k => 
+                locName.toLowerCase().includes(LOCATIONS[k].name.toLowerCase()) || 
+                locName.toLowerCase().includes(k.toLowerCase())
+            );
+            if (locKey && LOCATIONS[locKey].imageUrl) {
+                staticImageToUse = LOCATIONS[locKey].imageUrl;
+            }
+        }
+        // --- 靜態圖片注入邏輯 End ---
+
         const newHistory: ChatMessage[] = [...prev.history, { 
             role: 'model' as const, 
             content: narrative.description, 
             timestamp: Date.now(), 
-            imagePrompt: narrative.image_prompt 
+            // 若有靜態圖，則使用 staticImage，並清空 imagePrompt 以避免重複生成
+            staticImage: staticImageToUse,
+            imagePrompt: staticImageToUse ? undefined : narrative.image_prompt 
         }];
         if (eventLogs.length > 0) {
             eventLogs.forEach(log => newHistory.push({ role: 'system' as const, content: log, timestamp: Date.now() }));
@@ -273,7 +302,8 @@ const App: React.FC = () => {
         );
         
         const updatedEngineState = engineRef.current.getState();
-        const { history: _h, ...engineStateSafe } = updatedEngineState;
+        // 同樣排除 currentOptions
+        const { history: _h, currentOptions: _opts, ...engineStateSafe } = updatedEngineState;
         setGameState(prev => ({
             ...prev,
             ...engineStateSafe,
@@ -296,7 +326,8 @@ const App: React.FC = () => {
     if (!engineRef.current) return;
     const msg = engineRef.current.upgradeSkill(skillName);
     const updated = engineRef.current.getState();
-    const { history: _h, ...engineStateSafe } = updated;
+    // 排除 currentOptions，防止覆蓋掉 UI 上現有的 AI 選項
+    const { history: _h, currentOptions: _opts, ...engineStateSafe } = updated;
     setGameState(prev => ({ 
         ...prev, 
         ...engineStateSafe,
@@ -370,4 +401,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-    

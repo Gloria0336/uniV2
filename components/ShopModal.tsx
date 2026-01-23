@@ -49,27 +49,39 @@ export const ShopModal: React.FC<ShopModalProps> = ({ shop, credits, onBuy, onCl
                 {shop.items.map((item) => {
                     const canAfford = credits >= item.price;
                     return (
-                        <div key={item.id} className={`p-4 border rounded relative group transition-all ${canAfford ? 'border-gray-700 hover:border-neon-blue bg-white/5' : 'border-red-900/50 opacity-60 bg-red-900/10'}`}>
-                            <div className="flex justify-between items-start mb-2">
-                                <span className={`text-sm font-bold ${item.type === 'INFO' ? 'text-purple-400' : 'text-white'}`}>{item.name}</span>
-                                <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded ${canAfford ? 'bg-yellow-900/30 text-yellow-400' : 'bg-red-900/30 text-red-500'}`}>
+                        <div key={item.id} className={`p-4 border rounded relative group transition-all flex gap-3 ${canAfford ? 'border-gray-700 hover:border-neon-blue bg-white/5' : 'border-red-900/50 opacity-60 bg-red-900/10'}`}>
+                            {/* Image / Icon */}
+                            <div className="w-16 h-16 shrink-0 bg-black/50 border border-gray-800 flex items-center justify-center rounded overflow-hidden">
+                                {item.imageUrl ? (
+                                    <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                                ) : (
+                                    <span className="text-2xl text-gray-500">{item.type === 'INFO' ? '💾' : '📦'}</span>
+                                )}
+                            </div>
+
+                            <div className="flex-1 min-w-0">
+                                <div className="flex justify-between items-start mb-1">
+                                    <span className={`text-sm font-bold truncate ${item.type === 'INFO' ? 'text-purple-400' : 'text-white'}`}>{item.name}</span>
+                                </div>
+                                <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded inline-block mb-2 ${canAfford ? 'bg-yellow-900/30 text-yellow-400' : 'bg-red-900/30 text-red-500'}`}>
                                     {item.price} CR
                                 </span>
-                            </div>
-                            <p className="text-xs text-gray-400 mb-3 h-10 overflow-hidden text-ellipsis">{item.description}</p>
-                            <div className="flex justify-between items-center mt-2">
-                                <span className="text-[9px] text-gray-600 uppercase border border-gray-800 px-1 rounded">{item.type}</span>
-                                <button 
-                                    onClick={() => canAfford && handleLocalBuy(item)}
-                                    disabled={!canAfford}
-                                    className={`text-xs px-4 py-2 border uppercase tracking-widest font-bold transition-all ${
-                                        canAfford 
-                                        ? 'border-neon-green text-neon-green hover:bg-neon-green hover:text-black' 
-                                        : 'border-gray-800 text-gray-600 cursor-not-allowed'
-                                    }`}
-                                >
-                                    {canAfford ? '購買 (Purchase)' : '信用點不足'}
-                                </button>
+                                <p className="text-xs text-gray-400 mb-2 h-8 overflow-hidden text-ellipsis leading-tight">{item.description}</p>
+                                
+                                <div className="flex justify-between items-center mt-auto">
+                                    <span className="text-[9px] text-gray-600 uppercase border border-gray-800 px-1 rounded">{item.type}</span>
+                                    <button 
+                                        onClick={() => canAfford && handleLocalBuy(item)}
+                                        disabled={!canAfford}
+                                        className={`text-[10px] px-3 py-1 border uppercase tracking-widest font-bold transition-all ${
+                                            canAfford 
+                                            ? 'border-neon-green text-neon-green hover:bg-neon-green hover:text-black' 
+                                            : 'border-gray-800 text-gray-600 cursor-not-allowed'
+                                        }`}
+                                    >
+                                        {canAfford ? '購買' : '不足'}
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     );

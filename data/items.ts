@@ -11,7 +11,8 @@ export const ITEM_DATABASE: Record<string, Item> = {
     description: '存有 E.U.G. 黑色行動紀錄的硬碟。無法裝備，交給特定 NPC 可能會有收穫。',
     price: 0,
     maxStack: 1,
-    icon: '💾'
+    icon: '💾',
+    imageUrl: '/images/items/encrypted_drive.jpg'
   },
   'vip_pass': {
     id: 'vip_pass',
@@ -21,7 +22,8 @@ export const ITEM_DATABASE: Record<string, Item> = {
     description: '通往月球貴族區的憑證。',
     price: 2000,
     maxStack: 1,
-    icon: '💳'
+    icon: '💳',
+    imageUrl: '/images/items/vip_card.jpg'
   },
 
   // === 消耗品 (CONSUMABLE) ===
@@ -34,6 +36,7 @@ export const ITEM_DATABASE: Record<string, Item> = {
     price: 50,
     maxStack: 10,
     icon: '🩹',
+    imageUrl: '/images/items/medkit_s.jpg',
     effect: { type: 'HEAL', value: 20 }
   },
   'stimpack_combat': {
@@ -45,6 +48,7 @@ export const ITEM_DATABASE: Record<string, Item> = {
     price: 120,
     maxStack: 5,
     icon: '💉',
+    imageUrl: '/images/items/stimpack.jpg',
     effect: { type: 'RESTORE_AP', value: 5 }
   },
   'engine_booster': {
@@ -56,6 +60,7 @@ export const ITEM_DATABASE: Record<string, Item> = {
     price: 150,
     maxStack: 5,
     icon: '🚀',
+    imageUrl: '/images/items/booster.jpg',
     effect: { 
       type: 'BUFF', 
       targetStat: 'escapeRate', 
@@ -76,6 +81,7 @@ export const ITEM_DATABASE: Record<string, Item> = {
     price: 300,
     maxStack: 1,
     icon: '🔫',
+    imageUrl: '/images/items/pistol_m1.jpg',
     equipSlot: 'MAIN_HAND',
     stats: { attack: 12, critRate: 5 }
   },
@@ -89,6 +95,7 @@ export const ITEM_DATABASE: Record<string, Item> = {
     price: 850,
     maxStack: 1,
     icon: '🗡️',
+    imageUrl: '/images/items/vibro_blade.jpg',
     equipSlot: 'MAIN_HAND',
     stats: { attack: 25, critRate: 15 }
   },
@@ -102,6 +109,7 @@ export const ITEM_DATABASE: Record<string, Item> = {
     price: 400,
     maxStack: 1,
     icon: '👕',
+    imageUrl: '/images/items/armor_vest.jpg',
     equipSlot: 'BODY',
     stats: { defense: 10, hpMax: 20 }
   },
@@ -115,6 +123,7 @@ export const ITEM_DATABASE: Record<string, Item> = {
     price: 350,
     maxStack: 1,
     icon: '🪖',
+    imageUrl: '/images/items/helmet_tactical.jpg',
     equipSlot: 'HEAD',
     stats: { defense: 5, apMax: 1 }
   },
@@ -128,6 +137,7 @@ export const ITEM_DATABASE: Record<string, Item> = {
     price: 1500,
     maxStack: 1,
     icon: '👁️',
+    imageUrl: '/images/items/ocular_implant.jpg',
     equipSlot: 'IMPLANT',
     stats: { critRate: 10, attack: 5 }
   },
@@ -141,6 +151,7 @@ export const ITEM_DATABASE: Record<string, Item> = {
     price: 1200,
     maxStack: 1,
     icon: '🔫',
+    imageUrl: '/images/items/pulse_rifle.jpg',
     equipSlot: 'MAIN_HAND',
     stats: { attack: 18, critRate: 5 }
   },
@@ -154,6 +165,7 @@ export const ITEM_DATABASE: Record<string, Item> = {
     price: 900,
     maxStack: 1,
     icon: '🛡️',
+    imageUrl: '/images/items/riot_shield.jpg',
     equipSlot: 'OFF_HAND',
     stats: { defense: 15, hpMax: 50 }
   },
@@ -165,7 +177,8 @@ export const ITEM_DATABASE: Record<string, Item> = {
     description: '印有 E.U.G. 鋼印的數位憑證。沒有它，你在木星周邊會被視為海盜直接擊落。',
     price: 5000, // 黑市價格
     maxStack: 1,
-    icon: '📜'
+    icon: '📜',
+    imageUrl: '/images/items/permit.jpg'
   },
   'ration_military': {
     id: 'ration_military',
@@ -176,6 +189,7 @@ export const ITEM_DATABASE: Record<string, Item> = {
     price: 80,
     maxStack: 20,
     icon: '🥫',
+    imageUrl: '/images/items/ration.jpg',
     effect: { type: 'RESTORE_AP', value: 2, description: '快速補充體力' }
   },
 
@@ -192,6 +206,7 @@ export const ITEM_DATABASE: Record<string, Item> = {
     price: 2500,
     maxStack: 1,
     icon: '🗡️',
+    imageUrl: '/images/items/dagger.jpg',
     equipSlot: 'OFF_HAND',
     stats: { attack: 10, psionicPower: 15, critRate: 10 }
   },
@@ -205,6 +220,7 @@ export const ITEM_DATABASE: Record<string, Item> = {
     price: 600,
     maxStack: 1,
     icon: '👘',
+    imageUrl: '/images/items/robes.jpg',
     equipSlot: 'BODY',
     stats: { defense: 3, psionicPower: 10, hpMax: 10 }
   },
@@ -217,6 +233,7 @@ export const ITEM_DATABASE: Record<string, Item> = {
     price: 300,
     maxStack: 5,
     icon: '🟣',
+    imageUrl: '/images/items/incense.jpg',
     effect: { 
       type: 'BUFF', 
       targetStat: 'psionicPower', 
@@ -233,7 +250,8 @@ export const ITEM_DATABASE: Record<string, Item> = {
     description: '紅教初代先知的遺骸碎片。雖然令人不安，但散發著強大的能量波動。',
     price: 0,
     maxStack: 1,
-    icon: '🦴'
+    icon: '🦴',
+    imageUrl: '/images/items/bone.jpg'
   },
 
   // ==========================================
@@ -249,6 +267,7 @@ export const ITEM_DATABASE: Record<string, Item> = {
     price: 450,
     maxStack: 1,
     icon: '💥',
+    imageUrl: '/images/items/shotgun.jpg',
     equipSlot: 'MAIN_HAND',
     stats: { attack: 28, critRate: 20 } // 高傷高暴擊，但沒防禦加成
   },
@@ -262,6 +281,7 @@ export const ITEM_DATABASE: Record<string, Item> = {
     price: 1800,
     maxStack: 1,
     icon: '🦾',
+    imageUrl: '/images/items/exo.jpg',
     equipSlot: 'BODY',
     stats: { defense: 25, apMax: -1 } // 防禦極高但扣行動力
   },
@@ -274,6 +294,7 @@ export const ITEM_DATABASE: Record<string, Item> = {
     price: 30,
     maxStack: 10,
     icon: '🍺',
+    imageUrl: '/images/items/alcohol.jpg',
     effect: { 
       type: 'BUFF', 
       targetStat: 'critRate', 
@@ -290,7 +311,8 @@ export const ITEM_DATABASE: Record<string, Item> = {
     description: '裡面記錄了某個企業高層的黑帳。天眼閣（情報販子）會對這個很感興趣。',
     price: 0,
     maxStack: 1,
-    icon: '💾'
+    icon: '💾',
+    imageUrl: '/images/items/chip.jpg'
   },
 
   // ==========================================
@@ -306,6 +328,7 @@ export const ITEM_DATABASE: Record<string, Item> = {
     price: 2000,
     maxStack: 1,
     icon: '🧬',
+    imageUrl: '/images/items/plating.jpg',
     equipSlot: 'IMPLANT',
     stats: { defense: 8, hpMax: 30 }
   },
@@ -319,6 +342,7 @@ export const ITEM_DATABASE: Record<string, Item> = {
     price: 5000,
     maxStack: 1,
     icon: '⚡',
+    imageUrl: '/images/items/reflex.jpg',
     equipSlot: 'IMPLANT',
     stats: { escapeRate: 20, apMax: 2, critRate: 5 }
   },
@@ -332,6 +356,7 @@ export const ITEM_DATABASE: Record<string, Item> = {
     price: 2200,
     maxStack: 1,
     icon: '💻',
+    imageUrl: '/images/items/deck.jpg',
     equipSlot: 'OFF_HAND', // 設定為副手裝備
     stats: { attack: 5, critRate: 15 } // 提升駭入攻擊力與暴擊
   },
@@ -345,6 +370,7 @@ export const ITEM_DATABASE: Record<string, Item> = {
     price: 500,
     maxStack: 1,
     icon: '🪙',
+    imageUrl: '/images/items/coin.jpg',
     equipSlot: 'OFF_HAND',
     stats: { escapeRate: 10, critRate: 2 }
   },
@@ -358,6 +384,7 @@ export const ITEM_DATABASE: Record<string, Item> = {
     price: 3500,
     maxStack: 1,
     icon: '🔒',
+    imageUrl: '/images/items/damper.jpg',
     equipSlot: 'HEAD', // 佔用頭部欄位或是新增 ACCESSORY 欄位 (目前用 HEAD 替代或視需求擴充)
     stats: { defense: 5, psionicPower: -5, hpMax: 50 } // 犧牲靈能換取生存
   },
@@ -375,6 +402,7 @@ export const ITEM_DATABASE: Record<string, Item> = {
     price: 4500,
     maxStack: 1,
     icon: '🔥',
+    imageUrl: '/images/items/katana.jpg',
     equipSlot: 'MAIN_HAND',
     stats: { attack: 40, critRate: 25 }
   },
@@ -388,6 +416,7 @@ export const ITEM_DATABASE: Record<string, Item> = {
     price: 8000,
     maxStack: 1,
     icon: '🔭',
+    imageUrl: '/images/items/railgun.jpg',
     equipSlot: 'MAIN_HAND',
     stats: { attack: 65, apMax: -2 } // 極高傷害但扣除行動上限 (笨重)
   },
@@ -404,6 +433,7 @@ export const ITEM_DATABASE: Record<string, Item> = {
     price: 200,
     maxStack: 5,
     icon: '💉',
+    imageUrl: '/images/items/neuro_blocker.jpg',
     effect: { 
       type: 'BUFF', 
       targetStat: 'defense', 
@@ -421,6 +451,7 @@ export const ITEM_DATABASE: Record<string, Item> = {
     price: 300,
     maxStack: 3,
     icon: '💣',
+    imageUrl: '/images/items/emp.jpg',
     effect: { 
       type: 'BUFF', 
       targetStat: 'attack', // 模擬攻擊加成
@@ -441,7 +472,8 @@ export const ITEM_DATABASE: Record<string, Item> = {
     description: '來自古地球時代的科技遺物。收藏家願意出天價收購。',
     price: 10000,
     maxStack: 1,
-    icon: '💾'
+    icon: '💾',
+    imageUrl: '/images/items/ancient_hdd.jpg'
   },
   'item_cult_scripture': {
     id: 'item_cult_scripture',
@@ -451,7 +483,8 @@ export const ITEM_DATABASE: Record<string, Item> = {
     description: '紅教內部的禁書，詳細記載了如何透過痛苦激發靈能。',
     price: 0,
     maxStack: 1,
-    icon: '📖'
+    icon: '📖',
+    imageUrl: '/images/items/cult_book.jpg'
   },
   'item_faked_id': {
     id: 'item_faked_id',
@@ -461,7 +494,8 @@ export const ITEM_DATABASE: Record<string, Item> = {
     description: '足以騙過 E.U.G. 邊境掃描的高級偽造 ID。逃亡者的保命符。',
     price: 3000,
     maxStack: 1,
-    icon: '🆔'
+    icon: '🆔',
+    imageUrl: '/images/items/fake_id.jpg'
   }
 };
 
