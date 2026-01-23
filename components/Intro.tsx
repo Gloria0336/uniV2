@@ -8,6 +8,28 @@ interface IntroProps {
   isLoading: boolean;
 }
 
+const RANDOM_PERSONALITIES = [
+  "冷酷無情的利己主義者，只在乎任務報酬。",
+  "尋求真理的紅教叛徒，對神秘學有獨到見解。",
+  "崇尚混亂的自由無政府主義者，喜歡破壞舊秩序。",
+  "絕對理性的數據分析師，缺乏同理心但判斷精準。",
+  "富有同情心的前戰地醫護，無法見死不救。",
+  "偏執的科技崇拜者，認為肉體是軟弱的根源。",
+  "追求刺激的虛空行者，哪裡有危險就往哪去。",
+  "沉默寡言的賞金獵人，信奉以牙還牙。"
+];
+
+const RANDOM_APPEARANCES = [
+  "左眼替換為軍用級紅色義眼，臉頰有明显的散熱排氣孔。穿著舊式飛行夾克。",
+  "右臂完全機械化，手指是各種精密工具。身上沾滿了機油與鐵鏽的味道。",
+  "皮膚蒼白如紙，頸部後方有顯眼的數據接口插槽。穿著漆黑的高領風衣。",
+  "全身覆蓋著廉價的鉻金屬塗層，穿著霓虹色的透明塑膠雨衣。",
+  "留著雜亂的粉色龐克短髮，身上掛滿了各種舊時代的幸運符和硬幣。",
+  "穿著筆挺的聯合政府制服，但總是戴著一個破碎的防毒面具遮住下半臉。",
+  "看似完美的仿生人外表，但在情緒激動時，皮膚下會透出不穩定的藍光。",
+  "半邊臉被嚴重燒傷，用粗糙的金屬補丁遮蓋，眼神兇狠且充滿戒備。"
+];
+
 export const Intro: React.FC<IntroProps> = ({ onStart, isLoading }) => {
   const [activeTab, setActiveTab] = useState<'AUTH' | 'IDENTITY' | 'PROFILE'>('AUTH');
   const [testService] = useState(() => new GameService());
@@ -80,6 +102,26 @@ export const Intro: React.FC<IntroProps> = ({ onStart, isLoading }) => {
       setAvatarPreview(newAvatar);
       setIsGeneratingAvatar(false);
     }, 1200);
+  };
+
+  const handleRandomizeProfile = () => {
+    const genders = ['Male', 'Female', 'Non-binary', 'Android'];
+    const newGender = genders[Math.floor(Math.random() * genders.length)];
+    const newPersonality = RANDOM_PERSONALITIES[Math.floor(Math.random() * RANDOM_PERSONALITIES.length)];
+    const newAppearance = RANDOM_APPEARANCES[Math.floor(Math.random() * RANDOM_APPEARANCES.length)];
+
+    setGender(newGender);
+    setPersonality(newPersonality);
+    setAppearance(newAppearance);
+
+    // Auto generate avatar for the random profile
+    setIsGeneratingAvatar(true);
+    const seed = `${name || 'explorer'}-${newGender}-${newAppearance}-${newPersonality}-${Math.floor(Math.random() * 1000)}`;
+    const newAvatar = `https://api.dicebear.com/9.x/bottts/svg?seed=${encodeURIComponent(seed)}&baseColor=00f3ff,3b82f6,ef4444&backgroundColor=050505`;
+    setTimeout(() => {
+      setAvatarPreview(newAvatar);
+      setIsGeneratingAvatar(false);
+    }, 800);
   };
 
   const handleStartClick = () => {
@@ -224,6 +266,12 @@ export const Intro: React.FC<IntroProps> = ({ onStart, isLoading }) => {
                 {activeTab === 'PROFILE' && (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
                         <div className="space-y-4">
+                            <button 
+                                onClick={handleRandomizeProfile}
+                                className="w-full py-2 bg-white/5 border border-neon-blue/30 text-neon-blue hover:bg-neon-blue hover:text-black transition-all text-xs font-mono font-bold uppercase mb-2"
+                            >
+                                🎲 隨機生成檔案 (Randomize)
+                            </button>
                             <div>
                                 <label className="block text-xs text-neon-blue font-mono mb-2">GENDER / 性別</label>
                                 <select value={gender} onChange={e => setGender(e.target.value)} className="w-full bg-black border border-gray-700 p-3 outline-none">
@@ -242,7 +290,7 @@ export const Intro: React.FC<IntroProps> = ({ onStart, isLoading }) => {
                                 <textarea value={appearance} onChange={e => setAppearance(e.target.value)} className="w-full bg-black border border-gray-700 p-3 h-24 outline-none resize-none" placeholder="描述你的生化植入物或著裝..."></textarea>
                             </div>
                             <button onClick={handleGenerateAvatar} disabled={isGeneratingAvatar} className="w-full py-3 border border-neon-blue text-neon-blue hover:bg-neon-blue hover:text-black transition-all text-xs font-mono uppercase">
-                                {isGeneratingAvatar ? '正在合成生物特徵...' : '[ 生成特徵頭像 ]'}
+                                {isGeneratingAvatar ? '正在合成生物特徵...' : '[ 手動生成特徵頭像 ]'}
                             </button>
                         </div>
                         <div className="flex flex-col items-center justify-center bg-white/5 border border-white/10 rounded-lg p-4">
