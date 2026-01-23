@@ -334,6 +334,7 @@ ${skillList}
 [STATE]
 LOC: ${currentState.location}
 HP: ${healthText(currentState.health)}
+AP: ${currentState.actionPoints} / 5
 CREDITS: ${currentState.credits}
 INV: ${currentState.inventory.join(', ')}
 

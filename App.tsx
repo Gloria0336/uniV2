@@ -200,9 +200,44 @@ const App: React.FC = () => {
 
   const handleAction = async (text: string, option?: GameOption) => {
     if (!text.trim() || isProcessing || gameState.isGameOver || !engineRef.current) return;
+
     const userAction = text.trim();
+    
+    // 1. 建立預設的行動參數 (針對手動輸入)
+    let finalOption: Partial<GameOption> = option || {
+        id: -1,
+        text: userAction,
+        action_type: 'ACTION',
+        ap_cost: 1,            // 手動輸入預設消耗 1 AP
+        difficulty: 'NORMAL'
+    };
+
+    // 2. 關鍵字攔截：如果是休息指令，成本改為 0
+    if (/(休息|rest|修整|休整|睡覺|sleep)/i.test(userAction)) {
+          finalOption = {
+            id: -1,
+            text: userAction,
+            action_type: 'REST',
+            ap_cost: 0
+          };
+    }
+
+    // 3. Client-side Check: AP 耗盡阻擋
+    if (finalOption.action_type !== 'REST' && gameState.actionPoints <= 0) {
+        setGameState(prev => ({ 
+            ...prev, 
+            history: [...prev.history, { 
+                role: 'system' as const, 
+                content: `[體力透支] 你的 AP 已耗盡 (0/5)。你已經筋疲力盡，無法執行 "${userAction}"。\n請輸入「休息」或點擊相關選項來恢復體力。`, 
+                timestamp: Date.now() 
+            }].slice(-MAX_HISTORY_LEN) 
+        }));
+        return;
+    }
+
     setInput('');
     setIsProcessing(true);
+    
     setGameState(prev => ({ 
       ...prev, 
       currentOptions: [], 
@@ -210,19 +245,7 @@ const App: React.FC = () => {
     }));
     
     try {
-      // 關鍵字攔截：休息
-      let finalOption = option;
-
-      // 如果玩家手動輸入包含休息相關詞彙，建立一個臨時的 REST option
-      if (/(休息|rest|修整|休整|睡覺)/i.test(userAction)) {
-          finalOption = {
-            id: -1,
-            text: userAction,
-            action_type: 'REST',
-            ap_cost: 0
-          };
-      }
-
+      // 傳入處理後的 finalOption
       const systemLog = engineRef.current.processAction(userAction, finalOption);
       await processGameResponse(systemLog);
     } catch (error: any) {
