@@ -1,5 +1,6 @@
 
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
+import { getSystemLore } from '../data/lore';
 import { 
   FactionDetails, 
   PlayerProfile, 
@@ -187,27 +188,6 @@ export interface NarrativeResponse {
   shop: ShopData | null;
 }
 
-const LORE_DATA = `
-【世界觀重點】
-年份：3150年。
-三大勢力：EUG (地球木星/秩序)、紅教 (土星/靈能)、自由民 (火星帶/法外)。
-
-【你的角色：TRPG 地下城主】
-你是一個硬派賽博龐克冒險的 GM。當玩家第一次提供個人背景後，你必須：
-1. **塑造身分**: 賦予玩家一個具體的「職業/身分」(generated_identity)。
-2. **決定起點**: 根據身分，將其安置在合理的「起始地點」(starting_location)。
-3. **分發天賦**: 在第一次回應的 \`game_events.initial_skills\` 中，提供 3 個與該職業高度相關的初始技能。
-
-【開場指南】
-不要只是說「歡迎來到 3150 年」。請描述一個具體的、感官強烈的場景，讓玩家直接以該職業身分融入。
-**請務必使用「繁體中文」進行所有文字生成。**
-
-【連貫性協議】
-1. **選項引導**: 每個選項 (GameOption) 必須包含 'action_type' 與 'ap_cost'。
-2. **語系限制**: 嚴禁使用英文回傳描述，除非是專業術語。
-3. **勢力動態**: 你可以根據劇情進展更新各大勢力的成員數量與全球影響力 (world_factions)。
-`;
-
 export class GameService {
   private currentConfig?: GameConfig;
   private systemInstruction: string = "";
@@ -296,8 +276,27 @@ export class GameService {
 
   async startSession(playerName: string, faction: FactionDetails, profile: PlayerProfile, config: GameConfig): Promise<void> {
     this.currentConfig = config;
+    
+    const loreData = getSystemLore(1);
+
     this.systemInstruction = `
-${LORE_DATA}
+${loreData}
+
+【你的角色：TRPG 地下城主】
+你是一個硬派賽博龐克冒險的 GM。當玩家第一次提供個人背景後，你必須：
+1. **塑造身分**: 賦予玩家一個具體的「職業/身分」(generated_identity)。
+2. **決定起點**: 根據身分，將其安置在合理的「起始地點」(starting_location)。
+3. **分發天賦**: 在第一次回應的 \`game_events.initial_skills\` 中，提供 3 個與該職業高度相關的初始技能。
+
+【開場指南】
+不要只是說「歡迎來到 3150 年」。請描述一個具體的、感官強烈的場景，讓玩家直接以該職業身分融入。
+**請務必使用「繁體中文」進行所有文字生成。**
+
+【連貫性協議】
+1. **選項引導**: 每個選項 (GameOption) 必須包含 'action_type' 與 'ap_cost'。
+2. **語系限制**: 嚴禁使用英文回傳描述，除非是專業術語。
+3. **勢力動態**: 你可以根據劇情進展更新各大勢力的成員數量與全球影響力 (world_factions)。
+
 玩家資料：
 名稱: ${playerName}
 所屬大勢力: ${faction.name}

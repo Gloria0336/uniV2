@@ -210,8 +210,16 @@ const App: React.FC = () => {
     }));
     
     try {
-      const ap_cost = option?.ap_cost ?? 0;
-      const action_type = option?.action_type ?? 'TALK';
+      let ap_cost = option?.ap_cost ?? 0;
+      let action_type = option?.action_type ?? 'TALK';
+
+      // 關鍵字攔截：休息
+      // 如果玩家輸入包含休息相關詞彙，強制轉為 REST 行動，且通常不消耗 AP (或視為恢復 AP 的起手式)
+      if (/(休息|rest|修整|休整|睡覺)/i.test(userAction)) {
+          action_type = 'REST';
+          ap_cost = 0;
+      }
+
       const systemLog = engineRef.current.processAction(action_type, userAction, ap_cost);
       await processGameResponse(systemLog);
     } catch (error: any) {
