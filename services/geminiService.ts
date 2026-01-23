@@ -336,7 +336,7 @@ LOC: ${currentState.location}
 HP: ${healthText(currentState.health)}
 AP: ${currentState.actionPoints} / 5
 CREDITS: ${currentState.credits}
-INV: ${currentState.inventory.join(', ')}
+INV: ${currentState.inventory.map(s => `${s.itemId}x${s.quantity}`).join(', ')}
 
 [ACTION]
 ${systemLog}

@@ -42,6 +42,9 @@ const App: React.FC = () => {
     isGameOver: false,
     gameStarted: false,
     inventory: [],
+    equipment: { HEAD: null, BODY: null, MAIN_HAND: null, OFF_HAND: null, IMPLANT: null },
+    activeBuffs: [],
+    computedStats: { hpMax: 100, apMax: 5, attack: 1, defense: 0, critRate: 0 },
     factions: { earth: 0, mars: 0, belt: 0, jupiter: 0, saturn: 0 },
     worldFactions: {
         EUG: { members: 2000000000, influence: 90 },
@@ -88,6 +91,9 @@ const App: React.FC = () => {
         isGameOver: false,
         gameStarted: true, // 重要修正：在傳給引擎前就設為 true，防止回彈
         inventory: [],
+        equipment: { HEAD: null, BODY: null, MAIN_HAND: null, OFF_HAND: null, IMPLANT: null },
+        activeBuffs: [],
+        computedStats: { hpMax: 100, apMax: 5, attack: 1, defense: 0, critRate: 0 },
         factions: { earth: 0, mars: 0, belt: 0, jupiter: 0, saturn: 0 },
         worldFactions: {
             EUG: { members: 2000000000, influence: 90 },
@@ -364,3 +370,4 @@ const App: React.FC = () => {
 };
 
 export default App;
+    

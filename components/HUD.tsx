@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { GameState, FACTIONS } from '../types';
+import { getItemDef } from '../data/items';
 
 interface HUDProps {
   state: GameState;
@@ -130,13 +131,17 @@ export const HUD: React.FC<HUDProps> = ({ state, onOpenInventory }) => {
                 {(!state.inventory || state.inventory.length === 0) ? (
                     <div className="text-[9px] text-gray-700 italic font-mono px-2">EMPTY</div>
                 ) : (
-                    state.inventory.slice(0, 4).map((item, i) => (
-                        <div key={i} className="group relative shrink-0">
-                            <div className="px-2 py-1 bg-black/40 border border-gray-700 text-[9px] text-gray-400 font-mono group-hover:border-neon-blue group-hover:text-neon-blue transition-all cursor-default rounded-sm">
-                                {item}
+                    state.inventory.slice(0, 4).map((slot, i) => {
+                        const itemDef = getItemDef(slot.itemId);
+                        const displayName = itemDef ? itemDef.name : slot.itemId;
+                        return (
+                            <div key={i} className="group relative shrink-0">
+                                <div className="px-2 py-1 bg-black/40 border border-gray-700 text-[9px] text-gray-400 font-mono group-hover:border-neon-blue group-hover:text-neon-blue transition-all cursor-default rounded-sm">
+                                    {displayName} {slot.quantity > 1 ? `x${slot.quantity}` : ''}
+                                </div>
                             </div>
-                        </div>
-                    ))
+                        );
+                    })
                 )}
                 {state.inventory.length > 4 && (
                     <span className="text-[9px] text-gray-600 font-mono">+{state.inventory.length - 4}</span>

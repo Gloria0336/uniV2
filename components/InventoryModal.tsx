@@ -1,8 +1,10 @@
 
 import React from 'react';
+import { InventorySlot } from '../types';
+import { getItemDef } from '../data/items';
 
 interface InventoryModalProps {
-  inventory: string[];
+  inventory: InventorySlot[];
   onClose: () => void;
 }
 
@@ -68,15 +70,21 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ inventory, onClo
                     </div>
                 ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {safeInventory.map((item, idx) => (
-                            <div key={idx} className="aspect-square border border-gray-800 bg-white/5 hover:border-neon-blue hover:bg-neon-blue/5 transition-all p-3 flex flex-col items-center justify-center text-center group cursor-default">
-                                <div className="w-10 h-10 mb-2 border border-gray-700 flex items-center justify-center text-gray-400 group-hover:text-neon-blue group-hover:border-neon-blue transition-all">
-                                    {item.includes('靈能') ? '✦' : item.includes('急救') ? '✚' : '📦'}
+                        {safeInventory.map((slot, idx) => {
+                            const itemDef = getItemDef(slot.itemId);
+                            const name = itemDef ? itemDef.name : slot.itemId;
+                            return (
+                                <div key={idx} className="aspect-square border border-gray-800 bg-white/5 hover:border-neon-blue hover:bg-neon-blue/5 transition-all p-3 flex flex-col items-center justify-center text-center group cursor-default">
+                                    <div className="w-10 h-10 mb-2 border border-gray-700 flex items-center justify-center text-gray-400 group-hover:text-neon-blue group-hover:border-neon-blue transition-all">
+                                        {name.includes('靈能') ? '✦' : name.includes('急救') ? '✚' : '📦'}
+                                    </div>
+                                    <div className="text-[10px] font-bold text-gray-300 leading-tight group-hover:text-white">
+                                        {name} {slot.quantity > 1 ? `x${slot.quantity}` : ''}
+                                    </div>
+                                    <div className="mt-auto text-[8px] text-gray-600 font-mono">#ID_{idx.toString().padStart(3, '0')}</div>
                                 </div>
-                                <div className="text-[10px] font-bold text-gray-300 leading-tight group-hover:text-white">{item}</div>
-                                <div className="mt-auto text-[8px] text-gray-600 font-mono">#ID_{idx.toString().padStart(3, '0')}</div>
-                            </div>
-                        ))}
+                            );
+                        })}
                         
                         {/* Placeholder slots */}
                         {[...Array(Math.max(0, 12 - safeInventory.length))].map((_, i) => (

@@ -80,6 +80,76 @@ export interface ShopData {
   items: ShopItem[];
 }
 
+// === New Item & Equipment Types ===
+export type ItemCategory = 'QUEST' | 'CONSUMABLE' | 'EQUIPMENT' | 'MATERIAL';
+export type EquipmentType = 'WEAPON' | 'ARMOR' | 'IMPLANT' | 'ACCESSORY';
+export type Rarity = 'COMMON' | 'UNCOMMON' | 'RARE' | 'EPIC' | 'LEGENDARY';
+export type EquipmentSlotType = 'HEAD' | 'BODY' | 'MAIN_HAND' | 'OFF_HAND' | 'IMPLANT';
+
+export interface ItemStats {
+  attack?: number;      // 攻擊力
+  defense?: number;     // 防禦力
+  hpMax?: number;       // 生命上限加成
+  apMax?: number;       // 行動點上限加成
+  psionicPower?: number;// 靈能強度
+  critRate?: number;    // 暴擊率 (%)
+  escapeRate?: number;  // 逃脫率 (%)
+}
+
+// 消耗品的效果定義
+export interface ItemEffect {
+  type: 'HEAL' | 'RESTORE_AP' | 'BUFF';
+  value: number;
+  duration?: number;       // 持續回合數 (0 或 undefined 代表瞬間生效)
+  targetStat?: keyof ItemStats; // 若是 BUFF，指定提升哪個屬性 (如 escapeRate)
+  description?: string;    // 效果描述
+}
+
+// 運行時的 Buff 狀態
+export interface ActiveBuff {
+  id: string;              // 來源物品 ID
+  name: string;            // Buff 名稱
+  stat: keyof ItemStats;   // 影響屬性
+  value: number;           // 數值
+  turnsRemaining: number;  // 剩餘回合
+  icon?: string;
+}
+
+export interface Item {
+  id: string;
+  name: string;
+  category: ItemCategory;
+  type?: EquipmentType;
+  rarity: Rarity;
+  description: string;
+  price: number;
+  maxStack: number;
+  icon?: string;
+  
+  // Equipment specific
+  stats?: ItemStats;
+  equipSlot?: EquipmentSlotType;
+  requiredLevel?: number;
+
+  // Consumable specific
+  effect?: ItemEffect;
+}
+
+export interface InventorySlot {
+  itemId: string;
+  quantity: number;
+  instanceId?: string;
+}
+
+export interface EquipmentState {
+  HEAD: InventorySlot | null;
+  BODY: InventorySlot | null;
+  MAIN_HAND: InventorySlot | null;
+  OFF_HAND: InventorySlot | null;
+  IMPLANT: InventorySlot | null;
+}
+// ==================================
+
 export type ModelProvider = 'GEMINI' | 'OPENROUTER';
 
 export interface GameConfig {
@@ -95,7 +165,10 @@ export interface GameState {
   date: string;
   location: string;
   credits: number;
+  
   health: number;
+  maxHealth?: number; 
+  
   level: number;
   experience: number;
   nextLevelXp: number;
@@ -106,7 +179,12 @@ export interface GameState {
   history: ChatMessage[];
   isGameOver: boolean;
   gameStarted: boolean;
-  inventory: string[];
+  
+  inventory: InventorySlot[]; 
+  equipment: EquipmentState;  
+  activeBuffs: ActiveBuff[]; // New
+  computedStats: ItemStats;   
+
   factions: {
     earth: number;
     mars: number;

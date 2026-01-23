@@ -1,7 +1,8 @@
 
-import { GameState, GameEvents, Skill, ActionCategory, ShopItem, GameOption, CheckDifficulty } from '../types';
+import { GameState, GameEvents, Skill, ActionCategory, ShopItem, GameOption, CheckDifficulty, ItemStats, EquipmentSlotType, InventorySlot, ActiveBuff } from '../types';
 import { CONSTANTS, LOCATIONS, ITEMS } from '../data/rules';
 import { createSkill } from '../data/skills';
+import { getItemDef } from '../data/items';
 
 const TIMELINE: Record<number, string> = {
   3: "【世界事件】火星奧林帕斯山礦區爆發大規模罷工。",
@@ -42,27 +43,245 @@ export class GameEngine {
             if (skill) this.state.skills.push(skill);
         });
     }
+
+    // Initialize Equipment
+    if (!this.state.equipment) {
+        this.state.equipment = {
+            HEAD: null,
+            BODY: null,
+            MAIN_HAND: null,
+            OFF_HAND: null,
+            IMPLANT: null
+        };
+    }
+
+    // Initialize Active Buffs
+    if (!this.state.activeBuffs) {
+        this.state.activeBuffs = [];
+    }
+    
+    // Convert legacy inventory (string[]) to new InventorySlot[] if necessary
+    if (this.state.inventory && this.state.inventory.length > 0 && typeof this.state.inventory[0] === 'string') {
+        const legacyInv = this.state.inventory as unknown as string[];
+        this.state.inventory = [];
+        legacyInv.forEach((name) => {
+             // Fallback cleanup
+        });
+    } else if (!this.state.inventory) {
+        this.state.inventory = [];
+    }
+
+    this.recalculateStats();
   }
 
   public getState(): GameState {
     return this.state;
   }
 
+  private recalculateStats(): void {
+    const stats: ItemStats = {
+      attack: 1,
+      defense: 0,
+      hpMax: CONSTANTS.BASE_HP,
+      apMax: CONSTANTS.MAX_AP,
+      critRate: 0,
+      escapeRate: 0,
+      psionicPower: this.state.psionics?.level ? this.state.psionics.level * 10 : 0
+    };
+
+    // 1. Sum Equipment Stats
+    Object.values(this.state.equipment).forEach((slot) => {
+      if (slot) {
+        const itemDef = getItemDef(slot.itemId);
+        if (itemDef && itemDef.stats) {
+          this.mergeStats(stats, itemDef.stats);
+        }
+      }
+    });
+
+    // 2. Sum Active Buffs
+    if (this.state.activeBuffs) {
+        this.state.activeBuffs.forEach(buff => {
+            if (buff.stat) {
+                stats[buff.stat] = (stats[buff.stat] || 0) + buff.value;
+            }
+        });
+    }
+
+    this.state.computedStats = stats;
+    // 確保生命值不超過上限
+    const currentMax = stats.hpMax || 100;
+    if (this.state.health > currentMax) this.state.health = currentMax;
+  }
+
+  private mergeStats(base: ItemStats, add: ItemStats) {
+      base.attack = (base.attack || 0) + (add.attack || 0);
+      base.defense = (base.defense || 0) + (add.defense || 0);
+      base.hpMax = (base.hpMax || 0) + (add.hpMax || 0);
+      base.apMax = (base.apMax || 0) + (add.apMax || 0);
+      base.critRate = (base.critRate || 0) + (add.critRate || 0);
+      base.escapeRate = (base.escapeRate || 0) + (add.escapeRate || 0);
+      base.psionicPower = (base.psionicPower || 0) + (add.psionicPower || 0);
+  }
+
+  public addItem(itemId: string, quantity: number = 1): string {
+    const itemDef = getItemDef(itemId);
+    // If item not in DB, create a dummy item to prevent crash if AI generated it
+    const name = itemDef ? itemDef.name : itemId;
+    const maxStack = itemDef ? itemDef.maxStack : 1;
+
+    // 堆疊處理
+    if (maxStack > 1) {
+      const existingSlot = this.state.inventory.find(slot => slot.itemId === itemId && slot.quantity < maxStack);
+      if (existingSlot) {
+        const space = maxStack - existingSlot.quantity;
+        const add = Math.min(space, quantity);
+        existingSlot.quantity += add;
+        quantity -= add;
+        if (quantity === 0) return `[SYSTEM] 獲得 ${name} x${add}`;
+      }
+    }
+
+    // 新增格子
+    while (quantity > 0) {
+      if (this.state.inventory.length >= 20) return `[SYSTEM] 背包已滿，無法拾取 ${name}`;
+      const add = Math.min(quantity, maxStack);
+      this.state.inventory.push({ itemId, quantity: add });
+      quantity -= add;
+    }
+    return `[SYSTEM] 獲得 ${name}`;
+  }
+
+  public removeItem(itemId: string, quantity: number = 1): boolean {
+    for (let i = this.state.inventory.length - 1; i >= 0; i--) {
+      if (this.state.inventory[i].itemId === itemId) {
+        if (this.state.inventory[i].quantity > quantity) {
+          this.state.inventory[i].quantity -= quantity;
+          return true;
+        } else {
+          quantity -= this.state.inventory[i].quantity;
+          this.state.inventory.splice(i, 1);
+          if (quantity === 0) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  private removeItemFromSlot(index: number, quantity: number) {
+      if (this.state.inventory[index] && this.state.inventory[index].quantity > quantity) {
+          this.state.inventory[index].quantity -= quantity;
+      } else {
+          this.state.inventory.splice(index, 1);
+      }
+  }
+
+  public equipItem(inventoryIndex: number): string {
+    const slotData = this.state.inventory[inventoryIndex];
+    if (!slotData) return "無效的物品位置";
+
+    const itemDef = getItemDef(slotData.itemId);
+    if (!itemDef || itemDef.category !== 'EQUIPMENT' || !itemDef.equipSlot) return "此物品無法裝備";
+    if (itemDef.requiredLevel && this.state.level < itemDef.requiredLevel) {
+        return `等級不足 (需要 LV.${itemDef.requiredLevel})`;
+    }
+
+    const targetSlot = itemDef.equipSlot;
+    const currentEquip = this.state.equipment[targetSlot];
+
+    // 移除背包中的物品
+    this.removeItemFromSlot(inventoryIndex, 1);
+
+    // 若有舊裝備則卸下
+    if (currentEquip) {
+        this.addItem(currentEquip.itemId, 1);
+    }
+
+    // 裝備新物品
+    this.state.equipment[targetSlot] = { itemId: itemDef.id, quantity: 1 };
+    this.recalculateStats();
+
+    return `[SYSTEM] 已裝備 ${itemDef.name}`;
+  }
+
+  public unequipItem(slot: EquipmentSlotType): string {
+    const currentEquip = this.state.equipment[slot];
+    if (!currentEquip) return "該欄位沒有裝備";
+    if (this.state.inventory.length >= 20) return "背包已滿";
+
+    this.state.equipment[slot] = null;
+    this.addItem(currentEquip.itemId, 1);
+    this.recalculateStats();
+
+    return `[SYSTEM] 已卸下裝備`;
+  }
+
+  public useItem(inventoryIndex: number): string {
+    const slot = this.state.inventory[inventoryIndex];
+    if (!slot) return "無效物品";
+    
+    const itemDef = getItemDef(slot.itemId);
+    if (!itemDef) return "物品資料錯誤";
+
+    // A. 裝備類：引導去裝備
+    if (itemDef.category === 'EQUIPMENT') {
+        return this.equipItem(inventoryIndex);
+    }
+
+    // B. 任務類：僅消耗並提示
+    if (itemDef.category === 'QUEST') {
+        this.removeItemFromSlot(inventoryIndex, 1);
+        return `[SYSTEM] 使用了任務道具：${itemDef.name}。(已從背包移除)`;
+    }
+
+    // C. 消耗品類
+    if (itemDef.category === 'CONSUMABLE' && itemDef.effect) {
+        this.removeItemFromSlot(inventoryIndex, 1);
+        const eff = itemDef.effect;
+        let msg = `使用 ${itemDef.name}`;
+
+        if (eff.type === 'HEAL') {
+            const max = this.state.computedStats.hpMax || 100;
+            const oldHp = this.state.health;
+            this.state.health = Math.min(max, this.state.health + eff.value);
+            msg += `，恢復了 ${this.state.health - oldHp} 點生命。`;
+        } 
+        else if (eff.type === 'RESTORE_AP') {
+            const max = this.state.computedStats.apMax || 5;
+            this.state.actionPoints = Math.min(max, this.state.actionPoints + eff.value);
+            msg += `，回復了 ${eff.value} AP。`;
+        }
+        else if (eff.type === 'BUFF' && eff.targetStat && eff.duration) {
+            if (!this.state.activeBuffs) this.state.activeBuffs = [];
+            this.state.activeBuffs.push({
+                id: itemDef.id,
+                name: eff.description || itemDef.name,
+                stat: eff.targetStat,
+                value: eff.value,
+                turnsRemaining: eff.duration,
+                icon: itemDef.icon
+            });
+            this.recalculateStats();
+            msg += `，獲得狀態 [${eff.description}] (${eff.duration}回合)。`;
+        }
+        
+        return `[SYSTEM] ${msg}`;
+    }
+
+    return "此物品無法直接使用";
+  }
+
   public setSkills(skills: Skill[]): void {
-      // 嘗試標準化傳入的技能
       this.state.skills = [];
       skills.forEach(rawSkill => {
-          // 優先嘗試用 ID 或 Name 從資料庫重建標準技能物件
           const dbSkill = createSkill(rawSkill.id) || createSkill(rawSkill.name);
           if (dbSkill) {
-              // 保留傳入的等級與進度，但使用資料庫的描述與元數據
               this.state.skills.push({
                   ...dbSkill,
                   level: rawSkill.level ?? 1,
                   progress: rawSkill.progress ?? 0
               });
           } else {
-              // 若資料庫無此技能，則使用傳入的原始數據 (Fallback)
               this.state.skills.push({
                   ...rawSkill,
                   progress: rawSkill.progress ?? 0,
@@ -75,13 +294,36 @@ export class GameEngine {
 
   private advanceTurn(): string | null {
     this.state.turn += 1;
+    let log = "";
+    
+    // Buff 處理
+    const expiredBuffs: string[] = [];
+    if (this.state.activeBuffs && this.state.activeBuffs.length > 0) {
+        this.state.activeBuffs.forEach(buff => buff.turnsRemaining -= 1);
+        
+        // 移除過期 Buff
+        const active = this.state.activeBuffs.filter(b => b.turnsRemaining > 0);
+        const expired = this.state.activeBuffs.filter(b => b.turnsRemaining <= 0);
+        
+        this.state.activeBuffs = active;
+        expired.forEach(b => expiredBuffs.push(b.name));
+        
+        if (expired.length > 0) this.recalculateStats();
+    }
+    
+    if (expiredBuffs.length > 0) {
+        log += `[SYSTEM] 效果已結束: ${expiredBuffs.join(', ')}\n`;
+    }
+
     const currentTurn = this.state.turn;
     if (currentTurn >= 10 && this.state.worldStage < 2) this.state.worldStage = 2;
     if (currentTurn >= 20 && this.state.worldStage < 3) this.state.worldStage = 3;
+    
     if (TIMELINE[currentTurn]) {
-        return `[PLOT EVENT - TURN ${currentTurn}] ${TIMELINE[currentTurn]}`;
+        log += `[PLOT EVENT - TURN ${currentTurn}] ${TIMELINE[currentTurn]}`;
     }
-    return null;
+    
+    return log.trim() || null;
   }
 
   public upgradeSkill(skillName: string): string {
@@ -108,7 +350,7 @@ export class GameEngine {
       }
     }
     if (events.hp_change) {
-      this.state.health = Math.max(0, Math.min(CONSTANTS.BASE_HP, this.state.health + events.hp_change));
+      this.state.health = Math.max(0, Math.min(this.state.computedStats?.hpMax || CONSTANTS.BASE_HP, this.state.health + events.hp_change));
       logs.push(events.hp_change < 0 ? `[SYSTEM] 受到傷害 ${Math.abs(events.hp_change)}` : `[SYSTEM] 生命恢復 ${events.hp_change}`);
     }
     if (events.reputation_change) {
@@ -120,35 +362,27 @@ export class GameEngine {
         }
     }
     if (events.new_item) {
-        if (!this.state.inventory) this.state.inventory = [];
-        this.state.inventory.push(events.new_item);
-        logs.push(`[SYSTEM] 獲得物品: ${events.new_item}`);
+        const logMsg = this.addItem(events.new_item, 1);
+        logs.push(logMsg);
     }
     
-    // 標準化新技能獲取邏輯
     if (events.new_skill) {
-        // 1. 嘗試從 DB 建立標準技能 (優先用 id 查，沒有則用 name)
         let skill = createSkill(events.new_skill.name);
-        
-        // 若 AI 給的物件有 id 且 name 查不到，嘗試用 id 查
-        // @ts-ignore (兼容 AI 可能傳回 id 的情況)
+        // @ts-ignore
         if (!skill && events.new_skill.id) {
              // @ts-ignore
              skill = createSkill(events.new_skill.id);
         }
 
         if (skill) {
-            // 檢查是否已擁有
             const existing = this.state.skills.find(s => s.id === skill!.id);
             if (!existing) {
                 this.state.skills.push(skill);
                 logs.push(`[SYSTEM] 💡 領悟新技能: ${skill.name} (ID: ${skill.id})`);
             } else {
                 logs.push(`[SYSTEM] 技能熟練度提升: ${skill.name}`);
-                // 這裡未來可以加熟練度邏輯
             }
         } else {
-            // Fallback: 如果 DB 找不到，則使用 AI 提供的原始數據 (防止報錯，但標記為非標準)
             const fallbackSkill: Skill = {
                 id: events.new_skill.name.toLowerCase().replace(/\s/g, '_'),
                 name: events.new_skill.name,
@@ -215,75 +449,58 @@ export class GameEngine {
             return `[SYSTEM] 交易失敗：餘額不足。商品價格 ${item.price} CR，持有 ${this.state.credits} CR。`;
         }
 
-        this.state.credits -= item.price;
-        if (!Array.isArray(this.state.inventory)) this.state.inventory = [];
-        
-        // 將商品名稱加入庫存
-        this.state.inventory.push(item.name);
-
-        // 特殊物品邏輯 (保留兼容性)
-        if (item.id === 'psionic_amp' || item.name.includes('靈能增幅器')) {
-             if (!this.state.psionics) this.state.psionics = { level: 0, energy: 0, max_energy: 1, abilities: [] };
-             this.state.psionics.max_energy += 1;
-             this.state.psionics.energy = this.state.psionics.max_energy;
+        const addMsg = this.addItem(item.id, 1);
+        if (addMsg.includes("背包已滿")) {
+            return `[SYSTEM] 交易失敗：背包已滿。`;
         }
 
-        return `[SYSTEM] 交易成功：\n- 購買物品：${item.name}\n- 支付：${item.price} CR\n- 剩餘餘額：${this.state.credits} CR\n- 物品描述：${item.description}`;
+        this.state.credits -= item.price;
+        return `[SYSTEM] 交易成功：\n- 購買物品：${item.name}\n- 支付：${item.price} CR\n- 剩餘餘額：${this.state.credits} CR\n${addMsg}`;
 
     } else {
         const sellPrice = Math.floor(item.price * 0.5);
-        const idx = this.state.inventory.indexOf(item.name);
+        const removed = this.removeItem(item.id, 1);
         
-        if (idx === -1) return `[SYSTEM] 交易失敗：你的庫存中沒有 "${item.name}"。`;
+        if (!removed) return `[SYSTEM] 交易失敗：你的庫存中沒有 "${item.name}"。`;
         
-        this.state.inventory.splice(idx, 1);
         this.state.credits += sellPrice;
-
         return `[SYSTEM] 交易成功：\n- 出售物品：${item.name}\n- 獲得：${sellPrice} CR\n- 剩餘餘額：${this.state.credits} CR`;
     }
   }
 
   private calculateSuccessChance(skillId: string, difficulty: CheckDifficulty): number {
-      // 增強查找邏輯：支援 ID 或 Name
       const skill = this.state.skills.find(s => 
           s.id === skillId || 
           s.name === skillId || 
           s.id.includes(skillId) ||
-          (createSkill(skillId) && s.id === createSkill(skillId)!.id) // 嘗試正規化 ID 後查找
+          (createSkill(skillId) && s.id === createSkill(skillId)!.id)
       );
       
       const level = skill ? skill.level : 0;
       const modifier = DIFFICULTY_MODIFIER[difficulty] || 0;
-      // Formula: Base 30% + (Level * 5) + Modifier
-      let chance = 30 + (level * 5) + modifier;
+      let chance = 40 + (level * 5) + modifier;
       return Math.max(0, Math.min(100, chance));
   }
 
   public processAction(input: string | { type: string, payload: any }, option?: Partial<GameOption>): string {
-    // 1. Determine Action Type and Cost
     let actionType: string = 'TALK';
     let apCost: number = 0;
     let payload: any = input;
 
     if (typeof input === 'object' && input.type) {
-        // Handle complex payload (e.g., TRADE from ShopModal)
         actionType = input.type;
         payload = input.payload || input;
     } else {
-        // Handle standard text input or option click
         actionType = option?.action_type || 'TALK';
         apCost = option?.ap_cost || 0;
     }
 
-    // 2. Check AP (Cost 0 actions pass automatically)
     if (apCost > 0 && this.state.actionPoints < apCost) {
       throw new Error(`體力透支，無法執行此高強度行動 (需要 ${apCost} AP，當前僅剩 ${this.state.actionPoints})。建議進行休整 (REST)。`);
     }
 
-    // 3. Deduct AP
     this.state.actionPoints -= apCost;
 
-    // 4. Update Interaction State
     const command = typeof input === 'string' ? input : JSON.stringify(input);
     if (['MOVE_SHORT', 'MOVE_LONG', 'REST'].includes(actionType)) {
       this.state.interaction = { targetName: null, status: 'NONE' };
@@ -297,7 +514,6 @@ export class GameEngine {
     let log = "";
     const plotEvent = this.advanceTurn();
 
-    // 5. Execute Action Logic
     try {
       switch (actionType) {
         case 'MOVE_LONG':
@@ -313,7 +529,6 @@ export class GameEngine {
           log = `[SYSTEM] 執行行動：${actionType}\n- 指令內容：${command}\n- 消耗 AP：${apCost}`;
       }
 
-      // 6. Skill Check Logic
       if (option && option.requiredSkill && option.difficulty) {
           const skillId = option.requiredSkill;
           const chance = this.calculateSuccessChance(skillId, option.difficulty);
@@ -321,7 +536,6 @@ export class GameEngine {
           const isSuccess = roll <= chance;
           const resultText = isSuccess ? "成功" : "失敗";
           
-          // Try to find readable skill name
           const skill = this.state.skills.find(s => s.id === skillId || s.name === skillId || s.id.includes(skillId));
           const skillDisplayName = skill ? `${skill.name} (LV.${skill.level})` : `${skillId} (LV.0)`;
 
@@ -367,8 +581,8 @@ export class GameEngine {
 
   private handleRest(days: number = 1): string {
       const healAmount = 20 * days;
-      this.state.health = Math.min(CONSTANTS.BASE_HP, this.state.health + healAmount);
-      this.state.actionPoints = CONSTANTS.MAX_AP; 
+      this.state.health = Math.min(this.state.computedStats?.hpMax || CONSTANTS.BASE_HP, this.state.health + healAmount);
+      this.state.actionPoints = this.state.computedStats?.apMax || CONSTANTS.MAX_AP; 
       this.advanceDate(days);
 
       return `[SYSTEM] 休整紀錄：休息 ${days} 天。HP 恢復，AP 已完全補滿。`;
